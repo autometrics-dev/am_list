@@ -1,6 +1,11 @@
 use crate::{AmlError, ExpectedAmLabel, ListAmFunctions, Result, FUNC_NAME_CAPTURE};
 use rayon::prelude::*;
-use std::{collections::HashSet, ffi::OsStr, fs::read_to_string, path::Path};
+use std::{
+    collections::{HashSet, VecDeque},
+    ffi::OsStr,
+    fs::read_to_string,
+    path::Path,
+};
 use tree_sitter::{Parser, Query};
 use tree_sitter_rust::language;
 use walkdir::{DirEntry, WalkDir};
@@ -57,6 +62,42 @@ impl Impl {
             .map(ToString::to_string)
             .unwrap_or_default()
     }
+
+    fn fully_qualified_module_name(entry: &DirEntry) -> String {
+        let mut current_depth = entry.depth();
+        let mut mod_name_elements = VecDeque::with_capacity(8);
+        let mut path = entry.path();
+
+        // NOTE(magic)
+        // This "1" magic constant bears the assumption "am_list" is called
+        // from the root of a crate.
+        while current_depth > 1 {
+            if path.is_dir() {
+                if let Some(component) = path.file_name() {
+                    mod_name_elements.push_front(component.to_string_lossy().to_string());
+                }
+            } else if path.is_file() {
+                if let Some(stem) = path
+                    .file_name()
+                    .and_then(|os_str| os_str.to_str())
+                    .and_then(|file_name| file_name.strip_suffix(".rs"))
+                {
+                    if stem != "mod" {
+                        mod_name_elements.push_front(stem.to_string());
+                    }
+                }
+            }
+
+            if path.parent().is_some() {
+                path = path.parent().unwrap();
+                current_depth -= 1;
+            } else {
+                break;
+            }
+        }
+
+        itertools::intersperse(mod_name_elements.into_iter(), "::".to_string()).collect()
+    }
 }
 
 impl ListAmFunctions for Impl {
@@ -72,7 +113,7 @@ impl ListAmFunctions for Impl {
                 .into_iter()
                 .filter_map(|entry| {
                     let entry = entry.ok()?;
-                    let module = Self::module_name(&entry);
+                    let module = Self::fully_qualified_module_name(&entry);
                     Some((
                         entry
                             .path()
