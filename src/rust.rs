@@ -70,7 +70,8 @@ impl ListAmFunctions for Impl {
                         module: module.clone(),
                         function: fn_name,
                     })
-                }).flatten(),
+                })
+                .flatten(),
         );
         Ok(list)
     }

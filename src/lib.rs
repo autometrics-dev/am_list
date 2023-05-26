@@ -1,6 +1,6 @@
 pub mod rust;
 
-use std::{path::Path, fmt::Display};
+use std::{fmt::Display, path::Path};
 
 use thiserror::Error;
 use tree_sitter::{LanguageError, QueryError};

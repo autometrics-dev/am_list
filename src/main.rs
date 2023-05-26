@@ -13,7 +13,7 @@ struct Cli {
 
 #[derive(Clone, Copy)]
 enum Language {
-    Rust
+    Rust,
 }
 
 impl FromStr for Language {
@@ -21,7 +21,7 @@ impl FromStr for Language {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if ["rust", "rs"].contains(&s.to_lowercase().as_str()) {
-            return Ok(Self::Rust)
+            return Ok(Self::Rust);
         }
 
         Err(format!("Unknown language: {s}"))
@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
 
     let root = args.root;
 
-    let mut implementor = am_list::rust::Impl{};
+    let mut implementor = am_list::rust::Impl {};
 
     let res = implementor.list_autometrics_functions(&root)?;
 
