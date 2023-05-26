@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
 
     let root = args.root;
 
-    let implementor = am_list::rust::Impl{};
+    let mut implementor = am_list::rust::Impl{};
 
     let res = implementor.list_autometrics_functions(&root)?;
 

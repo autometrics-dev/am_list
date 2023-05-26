@@ -4,6 +4,8 @@ use tree_sitter::{Parser, Query};
 use tree_sitter_rust::language;
 use walkdir::{DirEntry, WalkDir};
 
+// TODO: Add state in the impl to allow remembering structs that have
+// the decoration in different files from the impl blocks
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impl {}
 
@@ -49,7 +51,7 @@ impl Impl {
 }
 
 impl ListAmFunctions for Impl {
-    fn list_autometrics_functions(&self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
         let mut list = Vec::new();
         let walker = WalkDir::new(project_root).into_iter();
         // TODO(perf): parallelize this extend
@@ -91,7 +93,7 @@ fn query_builder() -> Result<(Query, u32)> {
     Ok((query, idx))
 }
 
-pub fn list_function_names(source: &str) -> Result<Vec<String>> {
+fn list_function_names(source: &str) -> Result<Vec<String>> {
     let mut parser = new_parser()?;
     let (query, idx) = query_builder()?;
     let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
@@ -107,4 +109,85 @@ pub fn list_function_names(source: &str) -> Result<Vec<String>> {
         })
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|_| AmlError::InvalidText)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_single() {
+        let source = r#"
+        #[autometrics]
+        fn main() {}
+        "#;
+
+        let list = list_function_names(source).unwrap();
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], "main");
+    }
+
+    #[test]
+    fn detect_impl_block() {
+        let source = r#"
+        #[autometrics]
+        struct Foo{};
+
+        impl Foo {
+            fn method_a() {}
+        }
+        "#;
+
+        let list = list_function_names(source).unwrap();
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], "method_a");
+    }
+
+    #[test]
+    fn detect_trait_impl_block() {
+        let source = r#"
+        #[autometrics]
+        struct Foo{};
+
+        impl A for Foo {
+            fn m_a() {}
+        }
+        "#;
+
+        let list = list_function_names(source).unwrap();
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], "m_a");
+    }
+
+    #[test]
+    fn dodge_wrong_impl_block() {
+        let source = r#"
+        #[autometrics]
+        struct Foo{};
+
+        struct Bar{};
+
+        impl Bar {
+            fn method_one() {}
+        }
+        impl Foo {
+            fn method_two() {}
+        }
+        impl Bar {
+            fn method_three() {}
+        }
+        impl Foo {
+            fn method_four() {}
+        }
+        "#;
+
+        let list = list_function_names(source).unwrap();
+
+        assert_eq!(list.len(), 2);
+        assert!(list.contains(&"method_two".to_string()));
+        assert!(list.contains(&"method_four".to_string()));
+    }
 }

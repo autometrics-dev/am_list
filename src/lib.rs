@@ -7,7 +7,7 @@ use tree_sitter::{LanguageError, QueryError};
 
 const FUNC_NAME_CAPTURE: &str = "func.name";
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExpectedAmLabel {
     pub module: String,
     pub function: String,
@@ -20,7 +20,7 @@ impl Display for ExpectedAmLabel {
 }
 
 pub trait ListAmFunctions {
-    fn list_autometrics_functions(&self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
 }
 
 pub type Result<T> = std::result::Result<T, AmlError>;
