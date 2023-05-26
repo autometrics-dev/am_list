@@ -35,9 +35,10 @@ fn main() -> anyhow::Result<()> {
 
     let mut implementor = am_list::rust::Impl {};
 
-    let res = implementor.list_autometrics_functions(&root)?;
+    let mut res = implementor.list_autometrics_functions(&root)?;
 
     println!("Autometrics functions in {}:", root.display());
+    res.sort();
     for elem in &res {
         println!("{elem}");
     }

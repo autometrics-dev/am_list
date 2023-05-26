@@ -7,7 +7,7 @@ use tree_sitter::{LanguageError, QueryError};
 
 const FUNC_NAME_CAPTURE: &str = "func.name";
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExpectedAmLabel {
     pub module: String,
     pub function: String,

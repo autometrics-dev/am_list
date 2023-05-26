@@ -1,12 +1,13 @@
 use crate::{AmlError, ExpectedAmLabel, ListAmFunctions, Result, FUNC_NAME_CAPTURE};
-use std::{collections::BTreeSet, ffi::OsStr, fs::read_to_string, path::Path};
+use rayon::prelude::*;
+use std::{collections::HashSet, ffi::OsStr, fs::read_to_string, path::Path};
 use tree_sitter::{Parser, Query};
 use tree_sitter_rust::language;
 use walkdir::{DirEntry, WalkDir};
 
 const STRUCT_NAME_CAPTURE: &str = "type.target";
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct AmStruct {
     module: String,
     strc: String,
@@ -60,28 +61,50 @@ impl Impl {
 
 impl ListAmFunctions for Impl {
     fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
-        let mut list = BTreeSet::new();
+        const PREALLOCATED_ELEMS: usize = 100;
+        let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
+
         let walker = WalkDir::new(project_root).into_iter();
-        // TODO(perf): parallelize this extend
-        list.extend(
+        let mut source_mod_pairs = Vec::with_capacity(PREALLOCATED_ELEMS);
+        source_mod_pairs.extend(
             walker
                 .filter_entry(|e| Self::is_valid(e))
                 .into_iter()
                 .filter_map(|entry| {
                     let entry = entry.ok()?;
                     let module = Self::module_name(&entry);
-                    read_to_string(entry.path()).ok().map(|s| (s, module))
-                })
-                .map(move |(source, module)| {
-                    let names = list_function_names(&source).unwrap_or_default();
-                    names.into_iter().map(move |fn_name| ExpectedAmLabel {
-                        module: module.clone(),
-                        function: fn_name,
-                    })
-                })
-                .flatten(),
+                    Some((
+                        entry
+                            .path()
+                            .to_str()
+                            .map(ToString::to_string)
+                            .unwrap_or_default(),
+                        module,
+                    ))
+                }),
         );
-        Ok(list.into_iter().collect())
+
+        list.par_extend(
+            source_mod_pairs
+                .par_iter()
+                .filter_map(move |(path, module)| {
+                    let source = read_to_string(path).ok()?;
+                    let names = list_function_names(&source).unwrap_or_default();
+                    Some(
+                        names
+                            .into_iter()
+                            .map(move |fn_name| ExpectedAmLabel {
+                                module: module.clone(),
+                                function: fn_name,
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                }),
+        );
+
+        let mut result = Vec::with_capacity(PREALLOCATED_ELEMS);
+        result.extend(list.into_iter().flatten());
+        Ok(result)
     }
 }
 
@@ -108,7 +131,7 @@ fn query_builder() -> Result<(Query, u32, u32)> {
 // CLIPPY: we allow this unused function here to serve as a starting
 // point to deal with the "struct and impl in different files" issue
 #[allow(dead_code)]
-fn known_struct_query_builder(annotated_struct_list: &BTreeSet<AmStruct>) -> Result<(Query, u32)> {
+fn known_struct_query_builder(annotated_struct_list: &HashSet<AmStruct>) -> Result<(Query, u32)> {
     let regex = itertools::intersperse(annotated_struct_list.iter().map(|p| p.strc.as_str()), "|")
         .collect::<String>();
     let query_src = format!(
