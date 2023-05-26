@@ -33,3 +33,40 @@
  (#eq? @attr "autometrics")
  (#eq? @type.impl @type.target)
 )
+
+(
+ (impl_item
+   type: (type_identifier) @type.impl
+   body: (declaration_list
+           (function_item
+             name: (identifier) @func.name)))
+
+ (attribute_item)*
+ .
+ (attribute_item
+   (attribute
+     (identifier) @attr))
+ .
+ (attribute_item)*
+ .
+ (struct_item
+   name: (type_identifier) @type.target)
+
+ (#eq? @attr "autometrics")
+ (#eq? @type.impl @type.target)
+)
+
+(
+ (attribute_item)*
+ .
+ (attribute_item
+   (attribute
+     (identifier) @attr))
+ .
+ (attribute_item)*
+ .
+ (struct_item
+   name: (type_identifier) @type.target)
+
+ (#eq? @attr "autometrics")
+)

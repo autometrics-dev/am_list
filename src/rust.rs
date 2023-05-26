@@ -1,8 +1,16 @@
 use crate::{AmlError, ExpectedAmLabel, ListAmFunctions, Result, FUNC_NAME_CAPTURE};
-use std::{ffi::OsStr, fs::read_to_string, path::Path};
+use std::{collections::BTreeSet, ffi::OsStr, fs::read_to_string, path::Path};
 use tree_sitter::{Parser, Query};
 use tree_sitter_rust::language;
 use walkdir::{DirEntry, WalkDir};
+
+const STRUCT_NAME_CAPTURE: &str = "type.target";
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct AmStruct {
+    module: String,
+    strc: String,
+}
 
 // TODO: Add state in the impl to allow remembering structs that have
 // the decoration in different files from the impl blocks
@@ -52,7 +60,7 @@ impl Impl {
 
 impl ListAmFunctions for Impl {
     fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
-        let mut list = Vec::new();
+        let mut list = BTreeSet::new();
         let walker = WalkDir::new(project_root).into_iter();
         // TODO(perf): parallelize this extend
         list.extend(
@@ -73,7 +81,7 @@ impl ListAmFunctions for Impl {
                 })
                 .flatten(),
         );
-        Ok(list)
+        Ok(list.into_iter().collect())
     }
 }
 
@@ -83,7 +91,7 @@ fn new_parser() -> Result<Parser> {
     Ok(parser)
 }
 
-fn query_builder() -> Result<(Query, u32)> {
+fn query_builder() -> Result<(Query, u32, u32)> {
     let query = Query::new(
         language(),
         include_str!("../runtime/queries/rust/autometrics.scm"),
@@ -91,12 +99,55 @@ fn query_builder() -> Result<(Query, u32)> {
     let idx = query
         .capture_index_for_name(FUNC_NAME_CAPTURE)
         .ok_or(AmlError::MissingFuncNameCapture)?;
+    let cap_idx = query
+        .capture_index_for_name(STRUCT_NAME_CAPTURE)
+        .ok_or(AmlError::MissingFuncNameCapture)?;
+    Ok((query, idx, cap_idx))
+}
+
+// CLIPPY: we allow this unused function here to serve as a starting
+// point to deal with the "struct and impl in different files" issue
+#[allow(dead_code)]
+fn known_struct_query_builder(annotated_struct_list: &BTreeSet<AmStruct>) -> Result<(Query, u32)> {
+    let regex = itertools::intersperse(annotated_struct_list.iter().map(|p| p.strc.as_str()), "|")
+        .collect::<String>();
+    let query_src = format!(
+        include_str!("../runtime/queries/rust/am_struct.scm.tpl"),
+        regex
+    );
+    println!("{query_src}");
+
+    let query = Query::new(language(), &query_src)?;
+    let idx = query
+        .capture_index_for_name(FUNC_NAME_CAPTURE)
+        .ok_or(AmlError::MissingFuncNameCapture)?;
     Ok((query, idx))
+}
+
+// CLIPPY: we allow this unused function here to serve as a starting
+// point to deal with the "struct and impl in different files" issue
+#[allow(dead_code)]
+fn list_struct_names(source: &str) -> Result<Vec<String>> {
+    let mut parser = new_parser()?;
+    let (query, _, idx) = query_builder()?;
+    let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+
+    let mut cursor = tree_sitter::QueryCursor::new();
+    cursor
+        .matches(&query, parsed_source.root_node(), source.as_bytes())
+        .filter_map(|capture| {
+            capture
+                .nodes_for_capture_index(idx)
+                .next()
+                .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))
+        })
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|_| AmlError::InvalidText)
 }
 
 fn list_function_names(source: &str) -> Result<Vec<String>> {
     let mut parser = new_parser()?;
-    let (query, idx) = query_builder()?;
+    let (query, idx, _) = query_builder()?;
     let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
     let mut cursor = tree_sitter::QueryCursor::new();
@@ -144,6 +195,19 @@ mod tests {
 
         assert_eq!(list.len(), 1);
         assert_eq!(list[0], "method_a");
+    }
+
+    #[test]
+    fn detect_struct_annotation() {
+        let source = r#"
+        #[autometrics]
+        struct Foo{};
+        "#;
+
+        let list = list_struct_names(source).unwrap();
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], "Foo");
     }
 
     #[test]
