@@ -1,3 +1,4 @@
+pub mod go;
 pub mod rust;
 
 use std::{fmt::Display, path::Path};
