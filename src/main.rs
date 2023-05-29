@@ -1,14 +1,37 @@
 use am_list::ListAmFunctions;
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
+use flexi_logger::{AdaptiveFormat, Logger};
+use log::info;
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
 struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// List all the autometrics functions in the project, with their matching
+    /// modules
+    List(ListArgs),
+}
+
+#[derive(Args)]
+struct ListArgs {
+    /// Language to detect autometrics functions for.
     #[arg(short, long, value_name = "LANGUAGE")]
     language: Language,
+    /// Root of the project to start the search on.
+    /// - For Rust projects it must be where the Cargo.toml lie,
+    /// - For Go projects it must be the root of the repository.
     #[arg(value_name = "ROOT")]
     root: PathBuf,
+    /// Pretty print the resulting JSON (defaults to false)
+    #[arg(short, long, default_value = "false")]
+    pretty: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -35,27 +58,36 @@ impl FromStr for Language {
 }
 
 fn main() -> anyhow::Result<()> {
+    Logger::try_with_env()?
+        .adaptive_format_for_stderr(AdaptiveFormat::Detailed)
+        .start()?;
     let args = Cli::try_parse()?;
 
-    let root = args.root;
+    match args.command {
+        Command::List(args) => {
+            let root = args.root;
+            info!("Autometrics functions in {}:", root.display());
 
-    let mut res = match args.language {
-        Language::Rust => {
-            let mut implementor = am_list::rust::Impl {};
-            implementor.list_autometrics_functions(&root)?
-        }
-        Language::Go => {
-            let mut implementor = am_list::go::Impl {};
-            implementor.list_autometrics_functions(&root)?
-        }
-    };
+            let mut res = match args.language {
+                Language::Rust => {
+                    let mut implementor = am_list::rust::Impl {};
+                    implementor.list_autometrics_functions(&root)?
+                }
+                Language::Go => {
+                    let mut implementor = am_list::go::Impl {};
+                    implementor.list_autometrics_functions(&root)?
+                }
+            };
 
-    println!("Autometrics functions in {}:", root.display());
-    res.sort();
-    for elem in &res {
-        println!("{elem}");
+            res.sort();
+            if args.pretty {
+                println!("{}", serde_json::to_string_pretty(&res)?);
+            } else {
+                println!("{}", serde_json::to_string(&res)?);
+            }
+            info!("Total: {} functions", res.len());
+
+            Ok(())
+        }
     }
-    println!("Total: {} functions", res.len());
-
-    Ok(())
 }
