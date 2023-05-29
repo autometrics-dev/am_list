@@ -3,12 +3,13 @@ pub mod rust;
 
 use std::{fmt::Display, path::Path};
 
+use serde::Serialize;
 use thiserror::Error;
 use tree_sitter::{LanguageError, QueryError};
 
 const FUNC_NAME_CAPTURE: &str = "func.name";
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ExpectedAmLabel {
     pub module: String,
     pub function: String,
