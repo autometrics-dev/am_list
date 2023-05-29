@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/gagbo/am_list"
 authors = ["Gerry Agbobada <gerry@fiberplane.com>"]
+description = "A tree-sitter command line tool to list functions marked with Autometrics annotations"
+homepage = "https://autometrics.dev"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

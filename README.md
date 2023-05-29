@@ -9,7 +9,7 @@ autometricized.
 The analysis is powered by Tree-sitter, and all the specific logic is contained
 in TS queries that are specific for each language implementation.
 
-## Current POC state
+## Current state
 
 Given this (edited for simplicity) example file, where some functions
 have the autometrics annotation:
