@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Version 0.1.0 (2023-05-29)
+
 ### Added
 
 - Support for parsing Rust and Go projects
