@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
-## [Unreleased] – ReleaseDate
+## [Unreleased] - ReleaseDate
+
+## [Version 0.2.0] – 2023-06-07
 
 ### Added
 
@@ -43,5 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/gagbo/am_list/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/gagbo/am_list/compare/v0.2.0...HEAD
+[Version 0.2.0]: https://github.com/gagbo/am_list/compare/v0.1.0...v0.2.0
 [Version 0.1.0]: https://github.com/gagbo/am_list/releases/tag/v0.1.0
