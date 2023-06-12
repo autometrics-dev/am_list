@@ -43,5 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/gagbo/am_list/compare/v0.1.0...HEAD
-[Version 0.1.0]: https://github.com/gagbo/am_list/releases/tag/v0.1.0
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.1.0...HEAD
+[Version 0.1.0]: https://github.com/autometrics-dev/am_list/releases/tag/v0.1.0

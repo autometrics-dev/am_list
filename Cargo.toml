@@ -2,8 +2,8 @@
 name = "am_list"
 version = "0.1.0"
 edition = "2021"
-repository = "https://github.com/gagbo/am_list"
-authors = ["Gerry Agbobada <gerry@fiberplane.com>"]
+repository = "https://github.com/autometrics-dev/am_list"
+authors = ["Fiberplane <info@fiberplane.com>", "Gerry Agbobada <gerry@fiberplane.com>"]
 description = "A tree-sitter-powered command line tool to list functions marked with Autometrics annotations"
 homepage = "https://autometrics.dev"
 license = "MIT"
