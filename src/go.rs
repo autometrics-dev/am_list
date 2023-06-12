@@ -16,7 +16,7 @@ impl Impl {
         entry
             .file_name()
             .to_str()
-            .map(|s| s.starts_with("."))
+            .map(|s| s.starts_with('.'))
             .unwrap_or(false)
     }
 
@@ -38,20 +38,16 @@ impl ListAmFunctions for Impl {
 
         let walker = WalkDir::new(project_root).into_iter();
         let mut source_mod_pairs = Vec::with_capacity(PREALLOCATED_ELEMS);
-        source_mod_pairs.extend(
-            walker
-                .filter_entry(|e| Self::is_valid(e))
-                .filter_map(|entry| {
-                    let entry = entry.ok()?;
-                    Some(
-                        entry
-                            .path()
-                            .to_str()
-                            .map(ToString::to_string)
-                            .unwrap_or_default(),
-                    )
-                }),
-        );
+        source_mod_pairs.extend(walker.filter_entry(Self::is_valid).filter_map(|entry| {
+            let entry = entry.ok()?;
+            Some(
+                entry
+                    .path()
+                    .to_str()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+            )
+        }));
 
         list.par_extend(source_mod_pairs.par_iter().filter_map(move |path| {
             let source = read_to_string(path).ok()?;
@@ -87,10 +83,10 @@ fn query_builder() -> Result<(Query, u32, u32)> {
     )?;
     let idx = query
         .capture_index_for_name(FUNC_NAME_CAPTURE)
-        .ok_or_else(|| AmlError::MissingFuncNameCapture(FUNC_NAME_CAPTURE.into()))?;
+        .ok_or_else(|| AmlError::MissingNamedCapture(FUNC_NAME_CAPTURE.into()))?;
     let mod_idx = query
         .capture_index_for_name(PACK_NAME_CAPTURE)
-        .ok_or_else(|| AmlError::MissingFuncNameCapture(PACK_NAME_CAPTURE.into()))?;
+        .ok_or_else(|| AmlError::MissingNamedCapture(PACK_NAME_CAPTURE.into()))?;
     Ok((query, idx, mod_idx))
 }
 

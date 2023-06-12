@@ -1,6 +1,6 @@
+mod imports;
 mod queries;
 
-use self::queries::{AllFunctionsQuery, AmQuery};
 use crate::{ExpectedAmLabel, ListAmFunctions, Result};
 use rayon::prelude::*;
 use std::{
@@ -10,11 +10,7 @@ use std::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct AmStruct {
-    module: String,
-    strc: String,
-}
+use self::queries::{AllFunctionsQuery, AmQuery};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impl {}
@@ -34,32 +30,26 @@ impl Impl {
                 && entry
                     .file_name()
                     .to_str()
-                    .map(|s| s.ends_with(".rs"))
+                    .map(|s| s.ends_with(".ts"))
                     .unwrap_or(false)
     }
 
-    fn fully_qualified_module_name(entry: &DirEntry) -> String {
+    fn qualified_module_name(entry: &DirEntry) -> String {
         let mut current_depth = entry.depth();
         let mut mod_name_elements = VecDeque::with_capacity(8);
         let mut path = entry.path();
 
         // NOTE(magic)
         // This "1" magic constant bears the assumption "am_list" is called
-        // from the root of a crate.
+        // from the root of a typescript repository.
         while current_depth > 1 {
             if path.is_dir() {
                 if let Some(component) = path.file_name() {
                     mod_name_elements.push_front(component.to_string_lossy().to_string());
                 }
             } else if path.is_file() {
-                if let Some(stem) = path
-                    .file_name()
-                    .and_then(|os_str| os_str.to_str())
-                    .and_then(|file_name| file_name.strip_suffix(".rs"))
-                {
-                    if stem != "mod" {
-                        mod_name_elements.push_front(stem.to_string());
-                    }
+                if let Some(stem) = path.file_name().and_then(|os_str| os_str.to_str()) {
+                    mod_name_elements.push_front(stem.to_string());
                 }
             }
 
@@ -70,8 +60,7 @@ impl Impl {
                 break;
             }
         }
-
-        itertools::intersperse(mod_name_elements.into_iter(), "::".to_string()).collect()
+        itertools::intersperse(mod_name_elements.into_iter(), "/".to_string()).collect()
     }
 }
 
@@ -82,29 +71,22 @@ impl ListAmFunctions for Impl {
 
         let walker = WalkDir::new(project_root).into_iter();
         let mut source_mod_pairs = Vec::with_capacity(PREALLOCATED_ELEMS);
-        let query = AmQuery::try_new()?;
         source_mod_pairs.extend(walker.filter_entry(Self::is_valid).filter_map(|entry| {
             let entry = entry.ok()?;
-            let module = Self::fully_qualified_module_name(&entry);
-            Some((
-                entry
-                    .path()
-                    .to_str()
-                    .map(ToString::to_string)
-                    .unwrap_or_default(),
-                module,
-            ))
+            let module = Self::qualified_module_name(&entry);
+            Some((entry.path().to_path_buf(), module))
         }));
 
         list.par_extend(
             source_mod_pairs
                 .par_iter()
                 .filter_map(move |(path, module)| {
+                    let query = AmQuery::try_new().ok()?;
                     let source = read_to_string(path).ok()?;
-                    let am_functions = query
-                        .list_function_names(module.clone(), &source)
-                        .unwrap_or_default();
-                    Some(am_functions)
+                    let names = query
+                        .list_function_names(module, &source, Some(path))
+                        .ok()?;
+                    Some(names.into_iter().collect::<Vec<_>>())
                 }),
         );
 
@@ -114,15 +96,14 @@ impl ListAmFunctions for Impl {
     }
 
     fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
-        const PREALLOCATED_ELEMS: usize = 400;
+        const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
 
         let walker = WalkDir::new(project_root).into_iter();
         let mut source_mod_pairs = Vec::with_capacity(PREALLOCATED_ELEMS);
-        let query = AllFunctionsQuery::try_new()?;
         source_mod_pairs.extend(walker.filter_entry(Self::is_valid).filter_map(|entry| {
             let entry = entry.ok()?;
-            let module = Self::fully_qualified_module_name(&entry);
+            let module = Self::qualified_module_name(&entry);
             Some((
                 entry
                     .path()
@@ -138,10 +119,9 @@ impl ListAmFunctions for Impl {
                 .par_iter()
                 .filter_map(move |(path, module)| {
                     let source = read_to_string(path).ok()?;
-                    let am_functions = query
-                        .list_function_names(module.clone(), &source)
-                        .unwrap_or_default();
-                    Some(am_functions)
+                    let query = AllFunctionsQuery::try_new().ok()?;
+                    let names = query.list_function_names(module, &source).ok()?;
+                    Some(names.into_iter().collect::<Vec<_>>())
                 }),
         );
 
