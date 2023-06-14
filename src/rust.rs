@@ -28,7 +28,7 @@ impl Impl {
         entry
             .file_name()
             .to_str()
-            .map(|s| s.starts_with("."))
+            .map(|s| s.starts_with('.'))
             .unwrap_or(false)
     }
 
@@ -107,23 +107,18 @@ impl ListAmFunctions for Impl {
 
         let walker = WalkDir::new(project_root).into_iter();
         let mut source_mod_pairs = Vec::with_capacity(PREALLOCATED_ELEMS);
-        source_mod_pairs.extend(
-            walker
-                .filter_entry(|e| Self::is_valid(e))
-                .into_iter()
-                .filter_map(|entry| {
-                    let entry = entry.ok()?;
-                    let module = Self::fully_qualified_module_name(&entry);
-                    Some((
-                        entry
-                            .path()
-                            .to_str()
-                            .map(ToString::to_string)
-                            .unwrap_or_default(),
-                        module,
-                    ))
-                }),
-        );
+        source_mod_pairs.extend(walker.filter_entry(Self::is_valid).filter_map(|entry| {
+            let entry = entry.ok()?;
+            let module = Self::fully_qualified_module_name(&entry);
+            Some((
+                entry
+                    .path()
+                    .to_str()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                module,
+            ))
+        }));
 
         list.par_extend(
             source_mod_pairs
