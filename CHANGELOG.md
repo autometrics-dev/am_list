@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Fixed
+
+- [Rust] The struct name is now part of the module path for detected methods
+- [Rust] Modules defined within a source file are properly detected, and part
+  of the module path for detected methods
+
 ## [Version 0.2.0] – 2023-06-07
 
 ### Added
