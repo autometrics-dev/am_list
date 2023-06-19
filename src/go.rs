@@ -68,6 +68,10 @@ impl ListAmFunctions for Impl {
         result.extend(list.into_iter().flatten());
         Ok(result)
     }
+
+    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+        unimplemented!("listing all functions in Golang")
+    }
 }
 
 fn new_parser() -> Result<Parser> {
@@ -83,10 +87,10 @@ fn query_builder() -> Result<(Query, u32, u32)> {
     )?;
     let idx = query
         .capture_index_for_name(FUNC_NAME_CAPTURE)
-        .ok_or(AmlError::MissingFuncNameCapture)?;
+        .ok_or_else(|| AmlError::MissingFuncNameCapture(FUNC_NAME_CAPTURE.into()))?;
     let mod_idx = query
         .capture_index_for_name(PACK_NAME_CAPTURE)
-        .ok_or(AmlError::MissingFuncNameCapture)?;
+        .ok_or_else(|| AmlError::MissingFuncNameCapture(PACK_NAME_CAPTURE.into()))?;
     Ok((query, idx, mod_idx))
 }
 

@@ -8,7 +8,7 @@ fn detect_single() {
         fn main() {}
         "#;
 
-    let list = list_function_names(String::new(), source).unwrap();
+    let list = list_function_names(String::new(), source, true).unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
@@ -23,15 +23,15 @@ fn detect_single() {
 #[test]
 fn detect_impl_block() {
     let source = r#"
-        #[autometrics]
         struct Foo{};
 
+        #[autometrics]
         impl Foo {
             fn method_a() {}
         }
         "#;
 
-    let list = list_function_names(String::new(), source).unwrap();
+    let list = list_function_names(String::new(), source, true).unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
@@ -44,30 +44,17 @@ fn detect_impl_block() {
 }
 
 #[test]
-fn detect_struct_annotation() {
-    let source = r#"
-        #[autometrics]
-        struct Foo{};
-        "#;
-
-    let list = list_struct_names(source).unwrap();
-
-    assert_eq!(list.len(), 1);
-    assert_eq!(list[0], "Foo");
-}
-
-#[test]
 fn detect_trait_impl_block() {
     let source = r#"
-        #[autometrics]
         struct Foo{};
 
+        #[autometrics]
         impl A for Foo {
             fn m_a() {}
         }
         "#;
 
-    let list = list_function_names(String::new(), source).unwrap();
+    let list = list_function_names(String::new(), source, true).unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
@@ -82,7 +69,6 @@ fn detect_trait_impl_block() {
 #[test]
 fn dodge_wrong_impl_block() {
     let source = r#"
-        #[autometrics]
         struct Foo{};
 
         struct Bar{};
@@ -90,35 +76,65 @@ fn dodge_wrong_impl_block() {
         impl Bar {
             fn method_one() {}
         }
+        #[autometrics]
         impl Foo {
             fn method_two() {}
         }
         impl Bar {
             fn method_three() {}
         }
+        #[autometrics]
         impl Foo {
             fn method_four() {}
         }
         "#;
 
-    let list = list_function_names(String::new(), source).unwrap();
+    let list = list_function_names(String::new(), source, true).unwrap();
+    let all = list_function_names(String::new(), source, false).unwrap();
 
-    assert_eq!(list.len(), 2);
+    let method_one = ExpectedAmLabel {
+        module: "Bar".into(),
+        function: "method_one".into(),
+    };
     let method_two = ExpectedAmLabel {
         module: "Foo".into(),
         function: "method_two".into(),
     };
-    assert!(
-        list.contains(&method_two),
-        "Expecting the list to contain {method_two:?}\nComplete list is {list:?}"
-    );
+    let method_three = ExpectedAmLabel {
+        module: "Bar".into(),
+        function: "method_three".into(),
+    };
     let method_four = ExpectedAmLabel {
         module: "Foo".into(),
         function: "method_four".into(),
     };
+
+    assert_eq!(list.len(), 2);
+    assert!(
+        list.contains(&method_two),
+        "Expecting the list to contain {method_two:?}\nComplete list is {list:?}"
+    );
     assert!(
         list.contains(&method_four),
         "Expecting the list to contain {method_four:?}\nComplete list is {list:?}"
+    );
+
+    assert_eq!(all.len(), 4, "Complete list is {all:?}");
+    assert!(
+        all.contains(&method_one),
+        "Expecting the list to contain {method_one:?}\nComplete list is {all:?}"
+    );
+    assert!(
+        all.contains(&method_two),
+        "Expecting the list to contain {method_two:?}\nComplete list is {all:?}"
+    );
+    assert!(
+        all.contains(&method_three),
+        "Expecting the list to contain {method_three:?}\nComplete list is {all:?}"
+    );
+    assert!(
+        all.contains(&method_four),
+        "Expecting the list to contain {method_four:?}\nComplete list is {all:?}"
     );
 }
 
@@ -140,7 +156,7 @@ fn detect_inner_module() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source).unwrap();
+    let list = list_function_names(String::new(), source, true).unwrap();
     assert_eq!(
         list.len(),
         2,
@@ -161,5 +177,48 @@ fn detect_inner_module() {
     assert!(
         list.contains(&nested_fn),
         "Expecting the detected functions to contain {nested_fn:?}\nComplete list is {list:?}"
+    );
+}
+
+#[test]
+fn detect_partially_annotated_impl_block() {
+    let source = r#"
+        struct Foo{};
+
+        impl A for Foo {
+            fn nothing_to_see_here() {}
+
+            #[autometrics]
+            fn m_a() {}
+        }
+        "#;
+
+    let list = list_function_names(String::new(), source, true).unwrap();
+    let all = list_function_names(String::new(), source, false).unwrap();
+
+    let m_a = ExpectedAmLabel {
+        module: "Foo".into(),
+        function: "m_a".into(),
+    };
+
+    let dummy = ExpectedAmLabel {
+        module: "Foo".into(),
+        function: "nothing_to_see_here".into(),
+    };
+
+    assert_eq!(list.len(), 1, "Complete list is {list:?}");
+    assert!(
+        list.contains(&m_a),
+        "Expecting the list to contain {m_a:?}\nComplete list is {list:?}"
+    );
+
+    assert_eq!(all.len(), 2);
+    assert!(
+        all.contains(&m_a),
+        "Expecting the list to contain {m_a:?}\nComplete list is {all:?}"
+    );
+    assert!(
+        all.contains(&dummy),
+        "Expecting the list to contain {dummy:?}\nComplete list is {all:?}"
     );
 }
