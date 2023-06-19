@@ -29,6 +29,9 @@ struct ListArgs {
     /// - For Go projects it must be the root of the repository.
     #[arg(value_name = "ROOT")]
     root: PathBuf,
+    /// List all functions instead of only the autometricized ones (defaults to false)
+    #[arg(short, long, default_value = "false")]
+    all_functions: bool,
     /// Pretty print the resulting JSON (defaults to false)
     #[arg(short, long, default_value = "false")]
     pretty: bool,
@@ -68,15 +71,15 @@ fn main() -> anyhow::Result<()> {
             let root = args.root;
             info!("Autometrics functions in {}:", root.display());
 
-            let mut res = match args.language {
-                Language::Rust => {
-                    let mut implementor = am_list::rust::Impl {};
-                    implementor.list_autometrics_functions(&root)?
-                }
-                Language::Go => {
-                    let mut implementor = am_list::go::Impl {};
-                    implementor.list_autometrics_functions(&root)?
-                }
+            let mut implementor: Box<dyn ListAmFunctions> = match args.language {
+                Language::Rust => Box::new(am_list::rust::Impl {}),
+                Language::Go => Box::new(am_list::go::Impl {}),
+            };
+
+            let mut res = if args.all_functions {
+                implementor.list_all_functions(&root)?
+            } else {
+                implementor.list_autometrics_functions(&root)?
             };
 
             res.sort();
