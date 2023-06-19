@@ -3,7 +3,6 @@ use log::trace;
 use rayon::prelude::*;
 use std::{
     collections::{HashSet, VecDeque},
-    ffi::OsStr,
     fs::read_to_string,
     path::Path,
 };
