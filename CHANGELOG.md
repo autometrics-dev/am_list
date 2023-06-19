@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [Version 0.2.2] - 2023-06-19
+
+### Added
+
+- [Rust] The `list` subcommand now takes an optional `--all-functions` (short `-a`) flag,
+  which lists all functions/methods in the project instead of only the ones with the
+  autometrics annotation. This allows to get an overview of how many functions are
+  autometricized. The flag will crash on non-Rust implementations for now.
+
 ## [Version 0.2.1] - 2023-06-16
 
 ### Fixed
@@ -53,7 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/gagbo/am_list/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.2...HEAD
+[Version 0.2.2]: https://github.com/gagbo/am_list/compare/v0.2.1...v0.2.2
 [Version 0.2.1]: https://github.com/gagbo/am_list/compare/v0.2.0...v0.2.1
 [Version 0.2.0]: https://github.com/gagbo/am_list/compare/v0.1.0...v0.2.0
 [Version 0.1.0]: https://github.com/gagbo/am_list/releases/tag/v0.1.0

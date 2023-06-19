@@ -16,7 +16,7 @@ Use the installer script to pull the latest version directly from Github
 (change `VERSION` accordingly):
 
 ```console
-VERSION=0.2.0 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gagbo/am_list/releases/download/v$VERSION/am_list-installer.sh | sh
+VERSION=0.2.0 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/autometrics-dev/am_list/releases/download/v$VERSION/am_list-installer.sh | sh
 ```
 
 And run the binary
