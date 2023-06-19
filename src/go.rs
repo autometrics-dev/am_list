@@ -69,7 +69,7 @@ impl ListAmFunctions for Impl {
         Ok(result)
     }
 
-    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_all_functions(&mut self, _project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
         unimplemented!("listing all functions in Golang")
     }
 }
