@@ -23,6 +23,7 @@ impl Display for ExpectedAmLabel {
 
 pub trait ListAmFunctions {
     fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
+    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
 }
 
 pub type Result<T> = std::result::Result<T, AmlError>;
@@ -33,8 +34,8 @@ pub enum AmlError {
     CreateParser(#[from] LanguageError),
     #[error("Issue creating the TreeSitter query")]
     CreateQuery(#[from] QueryError),
-    #[error("The query is missing a function name capture")]
-    MissingFuncNameCapture,
+    #[error("The query is missing a function name capture: {0}")]
+    MissingFuncNameCapture(String),
     #[error("Parsing error")]
     Parsing,
     #[error("Invalid text in source")]

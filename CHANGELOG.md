@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Added
+
+- [Rust] The `list` subcommand now takes an optional `--all-functions` (short `-a`) flag,
+  which lists all functions/methods in the project instead of only the ones with the
+  autometrics annotation. This allows to get an overview of how many functions are
+  autometricized. The flag will crash on non-Rust implementations for now.
+
 ## [Version 0.2.1] - 2023-06-16
 
 ### Fixed
