@@ -41,6 +41,7 @@ struct ListArgs {
 enum Language {
     Rust,
     Go,
+    Typescript,
 }
 
 impl FromStr for Language {
@@ -54,6 +55,10 @@ impl FromStr for Language {
 
         if discriminant == "go" {
             return Ok(Self::Go);
+        }
+
+        if ["typescript", "ts"].contains(&discriminant.as_str()) {
+            return Ok(Self::Typescript);
         }
 
         Err(format!("Unknown language: {s}"))
@@ -74,6 +79,7 @@ fn main() -> anyhow::Result<()> {
             let mut implementor: Box<dyn ListAmFunctions> = match args.language {
                 Language::Rust => Box::new(am_list::rust::Impl {}),
                 Language::Go => Box::new(am_list::go::Impl {}),
+                Language::Typescript => Box::new(am_list::typescript::Impl {}),
             };
 
             let mut res = if args.all_functions {

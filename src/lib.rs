@@ -1,5 +1,6 @@
 pub mod go;
 pub mod rust;
+pub mod typescript;
 
 use std::{fmt::Display, path::Path};
 
@@ -34,8 +35,8 @@ pub enum AmlError {
     CreateParser(#[from] LanguageError),
     #[error("Issue creating the TreeSitter query")]
     CreateQuery(#[from] QueryError),
-    #[error("The query is missing a function name capture: {0}")]
-    MissingFuncNameCapture(String),
+    #[error("The query is missing an expected named capture: {0}")]
+    MissingNamedCapture(String),
     #[error("Parsing error")]
     Parsing,
     #[error("Invalid text in source")]

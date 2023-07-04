@@ -8,7 +8,10 @@ fn detect_single() {
         fn main() {}
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
@@ -31,14 +34,17 @@ fn detect_impl_block() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
         list[0],
         ExpectedAmLabel {
-            module: "Foo".into(),
-            function: "method_a".into()
+            module: String::new(),
+            function: "Foo::method_a".into()
         }
     );
 }
@@ -54,14 +60,17 @@ fn detect_trait_impl_block() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
 
     assert_eq!(list.len(), 1);
     assert_eq!(
         list[0],
         ExpectedAmLabel {
-            module: "Foo".into(),
-            function: "m_a".into()
+            module: String::new(),
+            function: "Foo::m_a".into()
         }
     );
 }
@@ -89,24 +98,30 @@ fn dodge_wrong_impl_block() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
-    let all = list_function_names(String::new(), source, false).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
+    let all = AllFunctionsQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
 
     let method_one = ExpectedAmLabel {
-        module: "Bar".into(),
-        function: "method_one".into(),
+        module: String::new(),
+        function: "Bar::method_one".into(),
     };
     let method_two = ExpectedAmLabel {
-        module: "Foo".into(),
-        function: "method_two".into(),
+        module: String::new(),
+        function: "Foo::method_two".into(),
     };
     let method_three = ExpectedAmLabel {
-        module: "Bar".into(),
-        function: "method_three".into(),
+        module: String::new(),
+        function: "Bar::method_three".into(),
     };
     let method_four = ExpectedAmLabel {
-        module: "Foo".into(),
-        function: "method_four".into(),
+        module: String::new(),
+        function: "Foo::method_four".into(),
     };
 
     assert_eq!(list.len(), 2);
@@ -156,7 +171,10 @@ fn detect_inner_module() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
     assert_eq!(
         list.len(),
         2,
@@ -193,17 +211,23 @@ fn detect_partially_annotated_impl_block() {
         }
         "#;
 
-    let list = list_function_names(String::new(), source, true).unwrap();
-    let all = list_function_names(String::new(), source, false).unwrap();
+    let list = AmQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
+    let all = AllFunctionsQuery::try_new()
+        .unwrap()
+        .list_function_names(String::new(), source)
+        .unwrap();
 
     let m_a = ExpectedAmLabel {
-        module: "Foo".into(),
-        function: "m_a".into(),
+        module: String::new(),
+        function: "Foo::m_a".into(),
     };
 
     let dummy = ExpectedAmLabel {
-        module: "Foo".into(),
-        function: "nothing_to_see_here".into(),
+        module: String::new(),
+        function: "Foo::nothing_to_see_here".into(),
     };
 
     assert_eq!(list.len(), 1, "Complete list is {list:?}");
