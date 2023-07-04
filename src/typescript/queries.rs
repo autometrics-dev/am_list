@@ -1,0 +1,529 @@
+use std::path::Path;
+
+use log::warn;
+use tree_sitter::{Parser, Query};
+use tree_sitter_typescript::language_typescript as language;
+
+use crate::{AmlError, ExpectedAmLabel, Result, FUNC_NAME_CAPTURE};
+
+use super::imports::{Identifier, ImportsMap, Source};
+
+const TYPE_NAME_CAPTURE: &str = "type.name";
+const METHOD_NAME_CAPTURE: &str = "method.name";
+const WRAPPER_DIRECT_NAME_CAPTURE: &str = "wrapperdirect.name";
+const WRAPPER_NAME_CAPTURE: &str = "wrapper.name";
+const WRAPPER_ARGS_MODULE_CAPTURE: &str = "module.name";
+
+const IMPORTS_IDENT_NAME_CAPTURE: &str = "inst.ident";
+const IMPORTS_REAL_NAME_CAPTURE: &str = "inst.realname";
+const IMPORTS_SOURCE_CAPTURE: &str = "inst.source";
+const IMPORTS_PREFIX_CAPTURE: &str = "inst.prefix";
+
+fn new_parser() -> Result<Parser> {
+    let mut parser = Parser::new();
+    parser.set_language(language())?;
+    Ok(parser)
+}
+
+#[derive(Debug)]
+pub(super) struct AllFunctionsQuery {
+    query: Query,
+    func_name_idx: u32,
+    type_name_idx: u32,
+    method_name_idx: u32,
+}
+
+impl AllFunctionsQuery {
+    pub fn try_new() -> Result<Self> {
+        let query = Query::new(
+            language(),
+            include_str!("../../runtime/queries/typescript/all_functions.scm"),
+        )?;
+        let func_name_idx = query
+            .capture_index_for_name(FUNC_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(FUNC_NAME_CAPTURE.to_string()))?;
+        let type_name_idx = query
+            .capture_index_for_name(TYPE_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(TYPE_NAME_CAPTURE.to_string()))?;
+        let method_name_idx = query
+            .capture_index_for_name(METHOD_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(METHOD_NAME_CAPTURE.to_string()))?;
+
+        Ok(Self {
+            query,
+            func_name_idx,
+            type_name_idx,
+            method_name_idx,
+        })
+    }
+
+    pub fn list_function_names(
+        &self,
+        module_name: &str,
+        source: &str,
+    ) -> Result<Vec<ExpectedAmLabel>> {
+        let mut parser = new_parser()?;
+        let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let functions = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+                match (
+                    // Test for bare function capture
+                    capture
+                        .nodes_for_capture_index(self.func_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                    // Test for method name capture
+                    capture
+                        .nodes_for_capture_index(self.method_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                    // Test for class name capture
+                    capture
+                        .nodes_for_capture_index(self.type_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                ) {
+                    (Some(Ok(bare_function_name)), _, _) => Some(ExpectedAmLabel {
+                        module: module_name.to_string(),
+                        function: bare_function_name,
+                    }),
+                    (_, Some(Ok(method_name)), Some(Ok(class_name))) => {
+                        let qual_fn_name = format!("{class_name}.{method_name}");
+                        Some(ExpectedAmLabel {
+                            module: module_name.to_string(),
+                            function: qual_fn_name,
+                        })
+                    }
+                    (_, None, Some(_)) => {
+                        warn!("Found a class without a method in the capture");
+                        None
+                    }
+                    (_, Some(_), None) => {
+                        warn!("Found a method without a class in the capture");
+                        None
+                    }
+                    (Some(Err(e)), _, _) => {
+                        warn!("Could not extract a function name: {e}");
+                        None
+                    }
+                    (_, Some(Err(e)), _) => {
+                        warn!("Could not extract a method name: {e}");
+                        None
+                    }
+                    (_, _, Some(Err(e))) => {
+                        warn!("Could not extract a class name: {e}");
+                        None
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        Ok(functions)
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct AmQuery {
+    query: Query,
+    type_name_idx: u32,
+    method_name_idx: u32,
+    wrapper_direct_name_idx: u32,
+    wrapper_name_idx: u32,
+}
+
+impl AmQuery {
+    pub fn try_new() -> Result<Self> {
+        let query = Query::new(
+            language(),
+            include_str!("../../runtime/queries/typescript/autometrics.scm"),
+        )?;
+        let type_name_idx = query
+            .capture_index_for_name(TYPE_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(TYPE_NAME_CAPTURE.to_string()))?;
+        let method_name_idx = query
+            .capture_index_for_name(METHOD_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(METHOD_NAME_CAPTURE.to_string()))?;
+        let wrapper_direct_name_idx = query
+            .capture_index_for_name(WRAPPER_DIRECT_NAME_CAPTURE)
+            .ok_or_else(|| {
+                AmlError::MissingNamedCapture(WRAPPER_DIRECT_NAME_CAPTURE.to_string())
+            })?;
+        let wrapper_name_idx = query
+            .capture_index_for_name(WRAPPER_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(WRAPPER_NAME_CAPTURE.to_string()))?;
+
+        Ok(Self {
+            query,
+            type_name_idx,
+            method_name_idx,
+            wrapper_direct_name_idx,
+            wrapper_name_idx,
+        })
+    }
+
+    pub fn list_function_names(
+        &self,
+        module_name: &str,
+        source: &str,
+        path: Option<&Path>,
+    ) -> Result<Vec<ExpectedAmLabel>> {
+        let mut parser = new_parser()?;
+        let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+
+        let imports_query = ImportsMapQuery::try_new()?;
+        let imports_map = imports_query.list_imports(path, source)?;
+
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let wrapper_direct_name = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .next()
+            .and_then(|capture| {
+                capture
+                    .nodes_for_capture_index(self.wrapper_direct_name_idx)
+                    .next()
+            })
+            .map(|node| {
+                node.utf8_text(source.as_bytes())
+                    .map(ToString::to_string)
+                    .map_err(|_| AmlError::InvalidText)
+            })
+            .transpose()?;
+        let mut wrapped_fns_list = if wrapper_direct_name.is_none() {
+            Vec::new()
+        } else {
+            let subquery = AmWrapperDirectSubquery::try_new(wrapper_direct_name.unwrap())?;
+            subquery.list_function_names(module_name, source, imports_map)?
+        };
+
+        let wrapper_name = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .next()
+            .and_then(|capture| {
+                capture
+                    .nodes_for_capture_index(self.wrapper_name_idx)
+                    .next()
+            })
+            .map(|node| {
+                node.utf8_text(source.as_bytes())
+                    .map(ToString::to_string)
+                    .map_err(|_| AmlError::InvalidText)
+            })
+            .transpose()?;
+        if let Some(wrapper_name) = wrapper_name {
+            let subquery = AmWrapperSubquery::try_new(wrapper_name)?;
+            wrapped_fns_list.extend(subquery.list_function_names(source)?)
+        }
+
+        cursor = tree_sitter::QueryCursor::new();
+        let mut method_list: Vec<ExpectedAmLabel> = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+                // Bare functions are handled by the subquery list_function_names method
+                match (
+                    // Test for Method name capture
+                    capture
+                        .nodes_for_capture_index(self.method_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                    // Test for class name capture
+                    capture
+                        .nodes_for_capture_index(self.type_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                ) {
+                    (Some(Ok(method_name)), Some(Ok(class_name))) => {
+                        let qual_fn_name = format!("{class_name}.{method_name}");
+                        Some(ExpectedAmLabel {
+                            module: module_name.to_string(),
+                            function: qual_fn_name,
+                        })
+                    }
+                    (None, Some(_)) => {
+                        warn!("Found a class without a method in the capture");
+                        None
+                    }
+                    (Some(_), None) => {
+                        warn!("Found a method without a class in the capture");
+                        None
+                    }
+                    (Some(Err(e)), _) => {
+                        warn!("Could not extract a method name: {e}");
+                        None
+                    }
+                    (_, Some(Err(e))) => {
+                        warn!("Could not extract a class name: {e}");
+                        None
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        // Concatenate list of methods and list of wrapped functions
+        method_list.append(&mut wrapped_fns_list);
+        Ok(method_list)
+    }
+}
+
+#[derive(Debug)]
+struct AmWrapperSubquery {
+    query: Query,
+    // Having the wrapper_name is useful when debugging the queries
+    #[allow(dead_code)]
+    wrapper_name: String,
+    func_name_idx: u32,
+    module_name_idx: u32,
+}
+
+impl AmWrapperSubquery {
+    pub fn try_new(wrapper_name: String) -> Result<Self> {
+        let wrapped_query_str = format!(
+            include_str!("../../runtime/queries/typescript/wrapper_call.scm.tpl"),
+            wrapper_name
+        );
+        let query = Query::new(language(), &wrapped_query_str)?;
+        let func_name_idx = query
+            .capture_index_for_name(FUNC_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(FUNC_NAME_CAPTURE.to_string()))?;
+        let module_name_idx = query
+            .capture_index_for_name(WRAPPER_ARGS_MODULE_CAPTURE)
+            .ok_or_else(|| {
+                AmlError::MissingNamedCapture(WRAPPER_ARGS_MODULE_CAPTURE.to_string())
+            })?;
+
+        Ok(Self {
+            query,
+            wrapper_name,
+            func_name_idx,
+            module_name_idx,
+        })
+    }
+
+    pub fn list_function_names(&self, source: &str) -> Result<Vec<ExpectedAmLabel>> {
+        let mut parser = new_parser()?;
+        let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let functions = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+                // Bare function
+                match (
+                    capture
+                        .nodes_for_capture_index(self.module_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                    capture
+                        .nodes_for_capture_index(self.func_name_idx)
+                        .next()
+                        .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
+                ) {
+                    (Some(Ok(module)), Some(Ok(function))) => {
+                        Some(ExpectedAmLabel { module, function })
+                    }
+                    (_, Some(Err(e))) => {
+                        warn!("Could not extract a function name: {e}");
+                        None
+                    }
+                    (Some(Err(e)), _) => {
+                        warn!("Could not extract a module name: {e}");
+                        None
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        Ok(functions)
+    }
+}
+
+#[derive(Debug)]
+struct AmWrapperDirectSubquery {
+    query: Query,
+    // Having the wrapper_name is useful when debugging the queries
+    #[allow(dead_code)]
+    wrapper_name: String,
+    func_name_idx: u32,
+}
+
+impl AmWrapperDirectSubquery {
+    pub fn try_new(wrapper_name: String) -> Result<Self> {
+        let wrapped_query_str = format!(
+            include_str!("../../runtime/queries/typescript/wrapper_direct_call.scm.tpl"),
+            wrapper_name
+        );
+        let query = Query::new(language(), &wrapped_query_str)?;
+        let func_name_idx = query
+            .capture_index_for_name(FUNC_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(FUNC_NAME_CAPTURE.to_string()))?;
+
+        Ok(Self {
+            query,
+            wrapper_name,
+            func_name_idx,
+        })
+    }
+
+    pub fn list_function_names(
+        &self,
+        module_name: &str,
+        source: &str,
+        imports_map: ImportsMap,
+    ) -> Result<Vec<ExpectedAmLabel>> {
+        let mut parser = new_parser()?;
+        let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let functions = cursor
+            .matches(&self.query, parsed_source.root_node(), source.as_bytes())
+            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+                // Bare function
+                match capture
+                    .nodes_for_capture_index(self.func_name_idx)
+                    .next()
+                    .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))
+                {
+                    Some(Ok(fn_name)) => {
+                        if let Some((ident, source)) =
+                            imports_map.resolve_ident(Identifier::from(&fn_name))
+                        {
+                            Some(ExpectedAmLabel {
+                                module: source.to_string(),
+                                function: ident.to_string(),
+                            })
+                        } else {
+                            Some(ExpectedAmLabel {
+                                module: module_name.to_string(),
+                                function: fn_name,
+                            })
+                        }
+                    }
+                    Some(Err(e)) => {
+                        warn!("Could not extract a function name: {e}");
+                        None
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        Ok(functions)
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct ImportsMapQuery {
+    query: Query,
+    named_import_idx: u32,
+    prefixed_import_idx: u32,
+    import_og_name_idx: u32,
+    source_idx: u32,
+}
+
+impl ImportsMapQuery {
+    pub fn try_new() -> Result<Self> {
+        let query = Query::new(
+            language(),
+            include_str!("../../runtime/queries/typescript/imports_map.scm"),
+        )?;
+        let named_import_idx = query
+            .capture_index_for_name(IMPORTS_IDENT_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(IMPORTS_IDENT_NAME_CAPTURE.to_string()))?;
+        let prefixed_import_idx = query
+            .capture_index_for_name(IMPORTS_PREFIX_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(IMPORTS_PREFIX_CAPTURE.to_string()))?;
+        let import_og_name_idx = query
+            .capture_index_for_name(IMPORTS_REAL_NAME_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(IMPORTS_REAL_NAME_CAPTURE.to_string()))?;
+        let source_idx = query
+            .capture_index_for_name(IMPORTS_SOURCE_CAPTURE)
+            .ok_or_else(|| AmlError::MissingNamedCapture(IMPORTS_SOURCE_CAPTURE.to_string()))?;
+
+        Ok(Self {
+            query,
+            named_import_idx,
+            prefixed_import_idx,
+            import_og_name_idx,
+            source_idx,
+        })
+    }
+
+    pub fn list_imports(&self, file_path: Option<&Path>, source: &str) -> Result<ImportsMap> {
+        let mut res = ImportsMap::default();
+
+        let mut parser = new_parser()?;
+        let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
+        let mut cursor = tree_sitter::QueryCursor::new();
+        for capture in cursor.matches(&self.query, parsed_source.root_node(), source.as_bytes()) {
+            // Check for a namespaced capture
+            if let Some(sub_match) = capture
+                .nodes_for_capture_index(self.prefixed_import_idx)
+                .next()
+            {
+                let prefix: Identifier = sub_match
+                    .utf8_text(source.as_bytes())
+                    .map(ToString::to_string)
+                    .map_err(|_| AmlError::InvalidText)?
+                    .into();
+                let import_source: Source = capture
+                    .nodes_for_capture_index(self.source_idx)
+                    .next()
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "the capture for {} has a capture for {}",
+                            IMPORTS_PREFIX_CAPTURE, IMPORTS_SOURCE_CAPTURE
+                        )
+                    })
+                    .utf8_text(source.as_bytes())
+                    .map_err(|_| AmlError::InvalidText)?
+                    .into();
+
+                res.add_namespace(prefix, import_source.into_canonical(file_path));
+            }
+
+            // Check for the other capture
+            if let Some(sub_match) = capture
+                .nodes_for_capture_index(self.named_import_idx)
+                .next()
+            {
+                let ident_name: Identifier = sub_match
+                    .utf8_text(source.as_bytes())
+                    .map_err(|_| AmlError::InvalidText)?
+                    .into();
+                let real_name: Option<Identifier> = capture
+                    .nodes_for_capture_index(self.import_og_name_idx)
+                    .next()
+                    .map(|node| -> Result<&str> {
+                        node.utf8_text(source.as_bytes())
+                            .map_err(|_| AmlError::InvalidText)
+                    })
+                    .transpose()?
+                    .map(Into::into);
+                let import_source: Source = capture
+                    .nodes_for_capture_index(self.source_idx)
+                    .next()
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "the capture for {} has a capture for {}",
+                            IMPORTS_IDENT_NAME_CAPTURE, IMPORTS_SOURCE_CAPTURE
+                        )
+                    })
+                    .utf8_text(source.as_bytes())
+                    .map_err(|_| AmlError::InvalidText)?
+                    .into();
+
+                if let Some(real_name) = real_name {
+                    res.add_aliased_import(
+                        ident_name,
+                        real_name,
+                        import_source.into_canonical(file_path),
+                    );
+                } else {
+                    res.add_named_import(ident_name, import_source.into_canonical(file_path));
+                }
+            }
+        }
+
+        Ok(res)
+    }
+}
