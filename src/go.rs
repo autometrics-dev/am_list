@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use std::{collections::HashSet, fs::read_to_string, path::Path};
 use walkdir::{DirEntry, WalkDir};
 
+/// Implementation of the Go support for listing autometricized functions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impl {}
 
