@@ -12,6 +12,7 @@ use walkdir::{DirEntry, WalkDir};
 
 use self::queries::{AllFunctionsQuery, AmQuery};
 
+/// Implementation of the Typescript support for listing autometricized functions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impl {}
 

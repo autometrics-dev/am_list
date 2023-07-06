@@ -81,6 +81,7 @@ fn is_within_impl_item(node: Node, max_parent: Option<Node>, source: &str) -> bo
     }
 }
 
+/// Query wrapper for "all autometrics functions in source"
 #[derive(Debug)]
 pub(super) struct AmQuery {
     query: Query,
@@ -107,6 +108,10 @@ pub(super) struct AmQuery {
 }
 
 impl AmQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),
@@ -168,8 +173,6 @@ impl AmQuery {
     ) -> Result<Vec<ExpectedAmLabel>> {
         let mut res = Vec::new();
         let mut cursor = tree_sitter::QueryCursor::new();
-
-        // TODO(maint): the direct_names and impl_block_methods block could be factorized in one function with different arguments (an AmQuery method)
 
         // Detect all functions directly in module scope
         let direct_names = self.list_direct_function_names(
@@ -382,6 +385,7 @@ impl AmQuery {
     }
 }
 
+/// Query wrapper for "all functions in source"
 #[derive(Debug)]
 pub(super) struct AllFunctionsQuery {
     query: Query,
@@ -398,6 +402,10 @@ pub(super) struct AllFunctionsQuery {
 }
 
 impl AllFunctionsQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),

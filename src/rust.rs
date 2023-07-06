@@ -16,6 +16,7 @@ struct AmStruct {
     strc: String,
 }
 
+/// Implementation of the Rust support for listing autometricized functions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impl {}
 

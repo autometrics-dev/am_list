@@ -11,14 +11,21 @@ fn new_parser() -> Result<Parser> {
     Ok(parser)
 }
 
+/// Query wrapper for "all autometrics functions in source"
 #[derive(Debug)]
 pub(super) struct AmQuery {
     query: Query,
+    /// Index of the capture for a function name.
     func_name_idx: u32,
+    /// Index of the capture for the package name.
     mod_name_idx: u32,
 }
 
 impl AmQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),
@@ -71,14 +78,21 @@ impl AmQuery {
     }
 }
 
+/// Query wrapper for "all functions in source"
 #[derive(Debug)]
 pub(super) struct AllFunctionsQuery {
     query: Query,
+    /// Index of the capture for a function name.
     func_name_idx: u32,
+    /// Index of the capture for the package name.
     mod_name_idx: u32,
 }
 
 impl AllFunctionsQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),

@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Relative source of an import
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Source(String);
 
@@ -44,6 +45,13 @@ impl Source {
     }
 }
 
+/// Canonical source of an import
+///
+/// The import will begin with `ext://` if the import is detected to come from
+/// outside the current project.
+///
+/// The import will begin with `sibling://` if the import is detected to come
+/// from a sibling folder in the same repository as the current project.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CanonicalSource(String);
 
@@ -59,8 +67,10 @@ impl ToString for CanonicalSource {
     }
 }
 
+/// New type for Identifiers to create type safe interfaces.
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct Identifier(String);
+
 impl<T: Into<String>> From<T> for Identifier {
     fn from(value: T) -> Self {
         Self(value.into())
@@ -73,6 +83,7 @@ impl ToString for Identifier {
     }
 }
 
+/// Structure containing the map of imports valid in a given source file.
 #[derive(Clone, Debug, Default)]
 pub struct ImportsMap {
     namespaced_imports: HashMap<Identifier, CanonicalSource>,
@@ -116,6 +127,7 @@ impl ImportsMap {
         self.named_imports.insert(alias, (name_in_source, source))
     }
 
+    /// Return the original name and the source of the given identifier.
     pub fn resolve_ident(&self, ident: Identifier) -> Option<(Identifier, CanonicalSource)> {
         let ident_str = ident.to_string();
 
