@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Fixed
+
+- [Go] The `list` subcommand now can also list all functions in a
+  project.
+
 ## [Version 0.2.3] - 2023-07-04
 
 ### Added
