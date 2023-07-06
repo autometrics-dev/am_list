@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [Version 0.2.4] - 2023-07-06
+
+### Fixed
+
+- [Go] The `list` subcommand now can also list all functions in a
+  project.
+
 ## [Version 0.2.3] - 2023-07-04
 
 ### Added
@@ -68,9 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.4...HEAD
+[Version 0.2.4]: https://github.com/autometrics-dev/am_list/compare/v0.2.3...v0.2.4
 [Version 0.2.3]: https://github.com/autometrics-dev/am_list/compare/v0.2.2...v0.2.3
-[Version 0.2.2]: https://github.com/gagbo/am_list/compare/v0.2.1...v0.2.2
-[Version 0.2.1]: https://github.com/gagbo/am_list/compare/v0.2.0...v0.2.1
-[Version 0.2.0]: https://github.com/gagbo/am_list/compare/v0.1.0...v0.2.0
-[Version 0.1.0]: https://github.com/gagbo/am_list/releases/tag/v0.1.0
+[Version 0.2.2]: https://github.com/autometrics-dev/am_list/compare/v0.2.1...v0.2.2
+[Version 0.2.1]: https://github.com/autometrics-dev/am_list/compare/v0.2.0...v0.2.1
+[Version 0.2.0]: https://github.com/autometrics-dev/am_list/compare/v0.1.0...v0.2.0
+[Version 0.1.0]: https://github.com/autometrics-dev/am_list/releases/tag/v0.1.0
