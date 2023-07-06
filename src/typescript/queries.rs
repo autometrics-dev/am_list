@@ -25,11 +25,15 @@ fn new_parser() -> Result<Parser> {
     Ok(parser)
 }
 
+/// Query wrapper for "all functions in source"
 #[derive(Debug)]
 pub(super) struct AllFunctionsQuery {
     query: Query,
+    /// Index of the capture for a function name.
     func_name_idx: u32,
+    /// Index of the capture for the name of a class that is defined in file.
     type_name_idx: u32,
+    /// Index of the capture for the contents of a method that is defined in file.
     method_name_idx: u32,
 }
 
@@ -125,16 +129,27 @@ impl AllFunctionsQuery {
     }
 }
 
+/// Query wrapper for "all autometrics functions in source"
 #[derive(Debug)]
 pub(super) struct AmQuery {
     query: Query,
+    /// Index of the capture for a class name defined in the file.
     type_name_idx: u32,
+    /// Index of the capture for a method name defined in the file.
     method_name_idx: u32,
+    /// Index of the capture for the name of the autometrics wrapper that takes
+    /// directly the function as argument.
     wrapper_direct_name_idx: u32,
+    /// Index of the capture for the name of the autometrics wrapper that takes
+    /// 2 arguments.
     wrapper_name_idx: u32,
 }
 
 impl AmQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),
@@ -268,17 +283,25 @@ impl AmQuery {
     }
 }
 
+/// Query wrapper for "all function arguments to the given wrapper_name in source"
 #[derive(Debug)]
 struct AmWrapperSubquery {
     query: Query,
+    /// Name of the wrapper function to look for
     // Having the wrapper_name is useful when debugging the queries
     #[allow(dead_code)]
     wrapper_name: String,
+    /// Index of the capture for a function name.
     func_name_idx: u32,
+    /// Index of the capture for a module name.
     module_name_idx: u32,
 }
 
 impl AmWrapperSubquery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new(wrapper_name: String) -> Result<Self> {
         let wrapped_query_str = format!(
             include_str!("../../runtime/queries/typescript/wrapper_call.scm.tpl"),
@@ -339,16 +362,24 @@ impl AmWrapperSubquery {
     }
 }
 
+/// Query wrapper for functions called in the autometrics wrapper that takes
+/// directly the function as arguments.
 #[derive(Debug)]
 struct AmWrapperDirectSubquery {
     query: Query,
+    /// Name of the wrapper function to look for
     // Having the wrapper_name is useful when debugging the queries
     #[allow(dead_code)]
     wrapper_name: String,
+    /// Index of the capture for the function name being called in the wrapper.
     func_name_idx: u32,
 }
 
 impl AmWrapperDirectSubquery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new(wrapper_name: String) -> Result<Self> {
         let wrapped_query_str = format!(
             include_str!("../../runtime/queries/typescript/wrapper_direct_call.scm.tpl"),
@@ -411,16 +442,26 @@ impl AmWrapperDirectSubquery {
     }
 }
 
+/// Query wrapper for imports in the source
 #[derive(Debug)]
 pub(super) struct ImportsMapQuery {
     query: Query,
+    /// Index of the capture for a named import in the source.
     named_import_idx: u32,
+    /// Index of the capture for a namespace import in the source.
     prefixed_import_idx: u32,
+    /// Index of the capture for the real name of an aliased import in the
+    /// source.
     import_og_name_idx: u32,
+    /// Index of the capture for the source of the import statement being captured.
     source_idx: u32,
 }
 
 impl ImportsMapQuery {
+    /// Failible constructor.
+    ///
+    /// The constructor only fails if the given tree-sitter query does not have the
+    /// necessary named captures.
     pub fn try_new() -> Result<Self> {
         let query = Query::new(
             language(),
