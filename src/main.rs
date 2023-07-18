@@ -58,7 +58,7 @@ impl FromStr for Language {
             return Ok(Self::Go);
         }
 
-        if ["typescript", "ts"].contains(&discriminant.as_str()) {
+        if ["typescript", "ts", "javascript", "js"].contains(&discriminant.as_str()) {
             return Ok(Self::Typescript);
         }
 
