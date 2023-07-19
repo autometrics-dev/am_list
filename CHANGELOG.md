@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [Version 0.2.5] - 2023-07-19
+
 ### Added
 
 - [All] The `ExpectedAmLabel` structure now implements `serde::Deserialize`
@@ -79,7 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.5...HEAD
+[Version 0.2.5]: https://github.com/autometrics-dev/am_list/compare/v0.2.4...v0.2.5
 [Version 0.2.4]: https://github.com/autometrics-dev/am_list/compare/v0.2.3...v0.2.4
 [Version 0.2.3]: https://github.com/autometrics-dev/am_list/compare/v0.2.2...v0.2.3
 [Version 0.2.2]: https://github.com/autometrics-dev/am_list/compare/v0.2.1...v0.2.2
