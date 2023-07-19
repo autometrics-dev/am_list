@@ -4,7 +4,7 @@ pub mod typescript;
 
 use std::{fmt::Display, path::Path};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tree_sitter::{LanguageError, QueryError};
 
@@ -15,7 +15,7 @@ const FUNC_NAME_CAPTURE: &str = "func.name";
 /// This label is given as a best effort most of the time, as some languages
 /// cannot provide statically the exact information that is going to be produced
 /// by Autometrics.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ExpectedAmLabel {
     /// The location of the definition of the function.
     pub module: String,
