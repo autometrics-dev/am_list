@@ -42,6 +42,7 @@ enum Language {
     Rust,
     Go,
     Typescript,
+    Python,
 }
 
 impl FromStr for Language {
@@ -59,6 +60,10 @@ impl FromStr for Language {
 
         if ["typescript", "ts"].contains(&discriminant.as_str()) {
             return Ok(Self::Typescript);
+        }
+
+        if ["python", "py"].contains(&discriminant.as_str()) {
+            return Ok(Self::Python);
         }
 
         Err(format!("Unknown language: {s}"))
@@ -80,6 +85,7 @@ fn main() -> anyhow::Result<()> {
                 Language::Rust => Box::new(am_list::rust::Impl {}),
                 Language::Go => Box::new(am_list::go::Impl {}),
                 Language::Typescript => Box::new(am_list::typescript::Impl {}),
+                Language::Python => Box::new(am_list::python::Impl {}),
             };
 
             let mut res = if args.all_functions {
