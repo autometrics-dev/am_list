@@ -27,6 +27,7 @@ dependencies = [
  "thiserror",
  "tree-sitter",
  "tree-sitter-go",
+ "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "walkdir",
@@ -677,6 +678,16 @@ name = "tree-sitter-go"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71967701c8214be4aa77e0260e98361e6fd71ceec1d9d03abb37a22c9f60d0ff"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-python"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dda114f58048f5059dcf158aff691dffb8e113e6d2b50d94263fd68711975287"
 dependencies = [
  "cc",
  "tree-sitter",
