@@ -9,12 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Added
+
+- [Python] Support for python language
+
 ## [Version 0.2.5] - 2023-07-19
 
 ### Added
 
 - [All] The `ExpectedAmLabel` structure now implements `serde::Deserialize`
-- [Python] Support for python language
 
 ## [Version 0.2.4] - 2023-07-06
 
