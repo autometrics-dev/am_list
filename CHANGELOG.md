@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [Version 0.2.7] - 2023-08-16
+
+### Changed
+
+- [Typescript] `am_list` will now skip all `node_modules` directory for
+  Typescript.
+- [Typescript] Include Javascript files in the search
+
+### Fixed
+
+- [Typescript] Fix detection of `@autometrics/autometrics` imports
+
 ## [Version 0.2.6] - 2023-07-27
 
 ### Added
@@ -20,16 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - [All] The `ExpectedAmLabel` structure now implements `serde::Deserialize`
-
-### Changed
-
-- [All] `am_list` will now skip all hidden directories (starting with `.`),
-  and in case of Typescript `node_modules` as well
-- [Typescript] Include Javascript files in the search
-
-### Fixed
-
-- [Typescript] Fix detection of `@autometrics/autometrics` imports
 
 ## [Version 0.2.4] - 2023-07-06
 
@@ -97,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.7...HEAD
+[Version 0.2.7]: https://github.com/autometrics-dev/am_list/compare/v0.2.6...v0.2.7
 [Version 0.2.6]: https://github.com/autometrics-dev/am_list/compare/v0.2.5...v0.2.6
 [Version 0.2.5]: https://github.com/autometrics-dev/am_list/compare/v0.2.4...v0.2.5
 [Version 0.2.4]: https://github.com/autometrics-dev/am_list/compare/v0.2.3...v0.2.4
