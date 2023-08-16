@@ -194,8 +194,7 @@ impl AmQuery {
         let mut cursor = tree_sitter::QueryCursor::new();
         let wrapper_direct_name = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .next()
-            .and_then(|capture| {
+            .filter_map(|capture| {
                 capture
                     .nodes_for_capture_index(self.wrapper_direct_name_idx)
                     .next()
@@ -205,6 +204,7 @@ impl AmQuery {
                     .map(ToString::to_string)
                     .map_err(|_| AmlError::InvalidText)
             })
+            .next()
             .transpose()?;
         let mut wrapped_fns_list = if wrapper_direct_name.is_none() {
             Vec::new()
@@ -215,8 +215,7 @@ impl AmQuery {
 
         let wrapper_name = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .next()
-            .and_then(|capture| {
+            .filter_map(|capture| {
                 capture
                     .nodes_for_capture_index(self.wrapper_name_idx)
                     .next()
@@ -226,6 +225,7 @@ impl AmQuery {
                     .map(ToString::to_string)
                     .map_err(|_| AmlError::InvalidText)
             })
+            .next()
             .transpose()?;
         if let Some(wrapper_name) = wrapper_name {
             let subquery = AmWrapperSubquery::try_new(wrapper_name)?;

@@ -9,7 +9,7 @@
      name: (identifier) @wrapperdirect.name
      .)))
   source: (string (string_fragment) @lib.atname))
- (#eq? @lib.atname "@autometrics/autometrics")
+ (#match? @lib.atname "@autometrics\/autometrics|autometrics")
  (#eq? @wrapperdirect.name "autometrics"))
 
 ((import_statement
@@ -19,7 +19,7 @@
      name: (identifier) @real.name
      alias: (identifier) @wrapperdirect.name)))
   source: (string (string_fragment) @lib.name))
- (#eq? @lib.name "@autometrics/autometrics")
+ (#match? @lib.name "@autometrics\/autometrics|autometrics")
  (#eq? @real.name "autometrics"))
 
 
@@ -35,7 +35,7 @@
      name: (identifier) @wrapper.name
      .)))
   source: (string (string_fragment) @lib.name))
- (#eq? @lib.name "autometrics")
+ (#match? @lib.name "@autometrics\/autometrics|autometrics")
  (#eq? @wrapper.name "autometrics"))
 
 ((import_statement
@@ -45,7 +45,7 @@
      name: (identifier) @real.name
      alias: (identifier) @wrapper.name)))
   source: (string (string_fragment) @lib.name))
- (#eq? @lib.name "autometrics")
+ (#match? @lib.name "@autometrics\/autometrics|autometrics")
  (#eq? @real.name "autometrics"))
 
 ((class_declaration

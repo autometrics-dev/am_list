@@ -30,13 +30,15 @@ impl Impl {
     }
 
     fn is_valid(entry: &DirEntry) -> bool {
+        if Impl::is_hidden(entry) {
+            return false;
+        }
         entry.file_type().is_dir()
-            || !Impl::is_hidden(entry)
-                && entry
-                    .file_name()
-                    .to_str()
-                    .map(|s| s.ends_with(".rs"))
-                    .unwrap_or(false)
+            || entry
+                .file_name()
+                .to_str()
+                .map(|s| s.ends_with(".rs"))
+                .unwrap_or(false)
     }
 
     fn fully_qualified_module_name(entry: &DirEntry) -> String {

@@ -21,18 +21,23 @@ impl Impl {
         entry
             .file_name()
             .to_str()
-            .map(|s| s.starts_with('.'))
+            .map(|s| s.starts_with('.') || s == "node_modules")
             .unwrap_or(false)
     }
 
     fn is_valid(entry: &DirEntry) -> bool {
+        if Impl::is_hidden(entry) {
+            return false;
+        }
         entry.file_type().is_dir()
-            || !Impl::is_hidden(entry)
-                && entry
-                    .file_name()
-                    .to_str()
-                    .map(|s| s.ends_with(".ts"))
-                    .unwrap_or(false)
+            || entry
+                .path()
+                .extension()
+                .map(|ext| {
+                    let ext = ext.to_str().unwrap_or("");
+                    ["js", "jsx", "ts", "tsx", "mjs"].contains(&ext)
+                })
+                .unwrap_or(false)
     }
 
     fn qualified_module_name(entry: &DirEntry) -> String {
