@@ -1,6 +1,6 @@
 [package]
 name = "am_list"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2021"
 repository = "https://github.com/autometrics-dev/am_list"
 authors = ["Fiberplane <info@fiberplane.com>", "Gerry Agbobada <gerry@fiberplane.com>"]
