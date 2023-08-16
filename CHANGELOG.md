@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [All] The `ExpectedAmLabel` structure now implements `serde::Deserialize`
 
+### Changed
+
+- [All] `am_list` will now skip all hidden directories (starting with `.`),
+  and in case of Typescript `node_modules` as well
+- [Typescript] Include Javascript files in the search
+
+### Fixed
+
+- [Typescript] Fix detection of `@autometrics/autometrics` imports
+
 ## [Version 0.2.4] - 2023-07-06
 
 ### Fixed
