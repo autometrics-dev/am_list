@@ -4,7 +4,7 @@ use log::warn;
 use tree_sitter::{Parser, Query};
 use tree_sitter_typescript::language_typescript as language;
 
-use crate::{AmlError, ExpectedAmLabel, Result, FUNC_NAME_CAPTURE};
+use crate::{AmlError, FunctionInfo, Location, Result, FUNC_NAME_CAPTURE};
 
 use super::imports::{Identifier, ImportsMap, Source};
 
@@ -63,41 +63,59 @@ impl AllFunctionsQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         module_name: &str,
         source: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
         let mut cursor = tree_sitter::QueryCursor::new();
         let functions = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
+                let func_name_node = capture.nodes_for_capture_index(self.func_name_idx).next();
+                let method_name_node = capture.nodes_for_capture_index(self.method_name_idx).next();
+                let type_name_node = capture.nodes_for_capture_index(self.type_name_idx).next();
                 match (
                     // Test for bare function capture
-                    capture
-                        .nodes_for_capture_index(self.func_name_idx)
-                        .next()
+                    func_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                     // Test for method name capture
-                    capture
-                        .nodes_for_capture_index(self.method_name_idx)
-                        .next()
+                    method_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                     // Test for class name capture
-                    capture
-                        .nodes_for_capture_index(self.type_name_idx)
-                        .next()
+                    type_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                 ) {
-                    (Some(Ok(bare_function_name)), _, _) => Some(ExpectedAmLabel {
-                        module: module_name.to_string(),
-                        function: bare_function_name,
-                    }),
+                    (Some(Ok(bare_function_name)), _, _) => {
+                        let start = func_name_node
+                            .expect("just extracted a name from the node")
+                            .start_position();
+                        let end = func_name_node
+                            .expect("just extracted a name from the node")
+                            .end_position();
+                        let instrumentation = None;
+                        let definition = Some(Location::from((file_name, start, end)));
+                        Some(FunctionInfo {
+                            id: (module_name, bare_function_name).into(),
+                            instrumentation,
+                            definition,
+                        })
+                    }
                     (_, Some(Ok(method_name)), Some(Ok(class_name))) => {
+                        let start = method_name_node
+                            .expect("just extracted a name from the node")
+                            .start_position();
+                        let end = method_name_node
+                            .expect("just extracted a name from the node")
+                            .end_position();
+                        let instrumentation = None;
+                        let definition = Some(Location::from((file_name, start, end)));
                         let qual_fn_name = format!("{class_name}.{method_name}");
-                        Some(ExpectedAmLabel {
-                            module: module_name.to_string(),
-                            function: qual_fn_name,
+                        Some(FunctionInfo {
+                            id: (module_name, qual_fn_name).into(),
+                            instrumentation,
+                            definition,
                         })
                     }
                     (_, None, Some(_)) => {
@@ -181,10 +199,11 @@ impl AmQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         module_name: &str,
         source: &str,
         path: Option<&Path>,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
@@ -210,7 +229,7 @@ impl AmQuery {
             Vec::new()
         } else {
             let subquery = AmWrapperDirectSubquery::try_new(wrapper_direct_name.unwrap())?;
-            subquery.list_function_names(module_name, source, imports_map)?
+            subquery.list_function_names(file_name, module_name, source, imports_map)?
         };
 
         let wrapper_name = cursor
@@ -229,31 +248,38 @@ impl AmQuery {
             .transpose()?;
         if let Some(wrapper_name) = wrapper_name {
             let subquery = AmWrapperSubquery::try_new(wrapper_name)?;
-            wrapped_fns_list.extend(subquery.list_function_names(source)?)
+            wrapped_fns_list.extend(subquery.list_function_names(file_name, source)?)
         }
 
         cursor = tree_sitter::QueryCursor::new();
-        let mut method_list: Vec<ExpectedAmLabel> = cursor
+        let mut method_list: Vec<FunctionInfo> = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 // Bare functions are handled by the subquery list_function_names method
+                let method_name_node = capture.nodes_for_capture_index(self.method_name_idx).next();
+                let type_name_node = capture.nodes_for_capture_index(self.type_name_idx).next();
                 match (
                     // Test for Method name capture
-                    capture
-                        .nodes_for_capture_index(self.method_name_idx)
-                        .next()
+                    method_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                     // Test for class name capture
-                    capture
-                        .nodes_for_capture_index(self.type_name_idx)
-                        .next()
+                    type_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                 ) {
                     (Some(Ok(method_name)), Some(Ok(class_name))) => {
                         let qual_fn_name = format!("{class_name}.{method_name}");
-                        Some(ExpectedAmLabel {
-                            module: module_name.to_string(),
-                            function: qual_fn_name,
+                        let start = method_name_node
+                            .expect("just extracted a name from the node")
+                            .start_position();
+                        let end = method_name_node
+                            .expect("just extracted a name from the node")
+                            .end_position();
+                        let instrumentation = Some(Location::from((file_name, start, end)));
+                        let definition = Some(Location::from((file_name, start, end)));
+                        Some(FunctionInfo {
+                            id: (module_name, qual_fn_name).into(),
+                            instrumentation,
+                            definition,
                         })
                     }
                     (None, Some(_)) => {
@@ -325,26 +351,37 @@ impl AmWrapperSubquery {
         })
     }
 
-    pub fn list_function_names(&self, source: &str) -> Result<Vec<ExpectedAmLabel>> {
+    pub fn list_function_names(&self, file_name: &str, source: &str) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
         let mut cursor = tree_sitter::QueryCursor::new();
         let functions = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 // Bare function
+                let func_name_node = capture.nodes_for_capture_index(self.func_name_idx).next();
+                let module_name_node = capture.nodes_for_capture_index(self.module_name_idx).next();
+
                 match (
-                    capture
-                        .nodes_for_capture_index(self.module_name_idx)
-                        .next()
+                    module_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
-                    capture
-                        .nodes_for_capture_index(self.func_name_idx)
-                        .next()
+                    func_name_node
                         .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string)),
                 ) {
                     (Some(Ok(module)), Some(Ok(function))) => {
-                        Some(ExpectedAmLabel { module, function })
+                        let start = func_name_node
+                            .expect("just extracted a name from the node")
+                            .start_position();
+                        let end = func_name_node
+                            .expect("just extracted a name from the node")
+                            .end_position();
+                        let definition = None;
+                        let instrumentation = Some(Location::from((file_name, start, end)));
+                        Some(FunctionInfo {
+                            id: (module, function).into(),
+                            instrumentation,
+                            definition,
+                        })
                     }
                     (_, Some(Err(e))) => {
                         warn!("Could not extract a function name: {e}");
@@ -399,34 +436,44 @@ impl AmWrapperDirectSubquery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         module_name: &str,
         source: &str,
         imports_map: ImportsMap,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
         let mut cursor = tree_sitter::QueryCursor::new();
         let functions = cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 // Bare function
-                match capture
-                    .nodes_for_capture_index(self.func_name_idx)
-                    .next()
+                let func_name_node = capture.nodes_for_capture_index(self.func_name_idx).next();
+                match func_name_node
                     .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))
                 {
                     Some(Ok(fn_name)) => {
+                        let start = func_name_node
+                            .expect("just extracted a name from the node")
+                            .start_position();
+                        let end = func_name_node
+                            .expect("just extracted a name from the node")
+                            .end_position();
+                        let definition = None;
+                        let instrumentation = Some(Location::from((file_name, start, end)));
                         if let Some((ident, source)) =
                             imports_map.resolve_ident(Identifier::from(&fn_name))
                         {
-                            Some(ExpectedAmLabel {
-                                module: source.to_string(),
-                                function: ident.to_string(),
+                            Some(FunctionInfo {
+                                id: (source, ident).into(),
+                                instrumentation,
+                                definition,
                             })
                         } else {
-                            Some(ExpectedAmLabel {
-                                module: module_name.to_string(),
-                                function: fn_name,
+                            Some(FunctionInfo {
+                                id: (module_name, fn_name).into(),
+                                instrumentation,
+                                definition,
                             })
                         }
                     }

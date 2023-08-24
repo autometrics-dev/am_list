@@ -1,12 +1,12 @@
 mod queries;
 
 use self::queries::{AllFunctionsQuery, AmQuery};
-use crate::{ExpectedAmLabel, ListAmFunctions, Result};
+use crate::{FunctionInfo, ListAmFunctions, Result};
 use rayon::prelude::*;
 use std::{
     collections::{HashSet, VecDeque},
     fs::read_to_string,
-    path::Path,
+    path::{Path, PathBuf},
 };
 use walkdir::{DirEntry, WalkDir};
 
@@ -74,12 +74,12 @@ impl Impl {
             }
         }
 
-        itertools::intersperse(mod_name_elements.into_iter(), "::".to_string()).collect()
+        itertools::intersperse(mod_name_elements, "::".to_string()).collect()
     }
 }
 
 impl ListAmFunctions for Impl {
-    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
 
@@ -104,8 +104,14 @@ impl ListAmFunctions for Impl {
                 .par_iter()
                 .filter_map(move |(path, module)| {
                     let source = read_to_string(path).ok()?;
+                    let file_name = PathBuf::from(path)
+                        .strip_prefix(project_root)
+                        .expect("path comes from a project_root WalkDir")
+                        .to_str()
+                        .expect("file_name is a valid path as it is part of `path`")
+                        .to_string();
                     let am_functions = query
-                        .list_function_names(module.clone(), &source)
+                        .list_function_names(&file_name, module.clone(), &source)
                         .unwrap_or_default();
                     Some(am_functions)
                 }),
@@ -116,7 +122,7 @@ impl ListAmFunctions for Impl {
         Ok(result)
     }
 
-    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_all_function_definitions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 400;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
 
@@ -141,8 +147,14 @@ impl ListAmFunctions for Impl {
                 .par_iter()
                 .filter_map(move |(path, module)| {
                     let source = read_to_string(path).ok()?;
+                    let file_name = PathBuf::from(path)
+                        .strip_prefix(project_root)
+                        .expect("path comes from a project_root WalkDir")
+                        .to_str()
+                        .expect("file_name is a valid path as it is part of `path`")
+                        .to_string();
                     let am_functions = query
-                        .list_function_names(module.clone(), &source)
+                        .list_function_names(&file_name, module.clone(), &source)
                         .unwrap_or_default();
                     Some(am_functions)
                 }),

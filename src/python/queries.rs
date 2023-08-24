@@ -1,4 +1,4 @@
-use crate::{AmlError, ExpectedAmLabel, Result, FUNC_NAME_CAPTURE};
+use crate::{AmlError, FunctionInfo, Location, Result, FUNC_NAME_CAPTURE};
 use tree_sitter::{Parser, Query};
 use tree_sitter_python::language;
 
@@ -66,9 +66,10 @@ impl AmQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         source: &str,
         module_name: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
@@ -77,16 +78,22 @@ impl AmQuery {
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
             .filter_map(|m| {
                 let node = m.nodes_for_capture_index(self.func_name_idx).next()?;
+                let start = node.start_position();
+                let end = node.end_position();
+                let instrumentation = Some(Location::from((file_name, start, end)));
+                let definition = Some(Location::from((file_name, start, end)));
+
                 let func_name = node.utf8_text(source.as_bytes()).ok()?.to_string();
                 let qualname = get_node_qualname(&node, source).ok()?;
-                let full_name = if qualname == "" {
+                let full_name = if qualname.is_empty() {
                     func_name
                 } else {
                     format!("{}.{}", qualname, func_name)
                 };
-                Some(Ok(ExpectedAmLabel {
-                    module: module_name.clone().to_string(),
-                    function: full_name,
+                Some(Ok(FunctionInfo {
+                    id: (module_name, full_name).into(),
+                    instrumentation,
+                    definition,
                 }))
             })
             .collect::<std::result::Result<Vec<_>, _>>()
@@ -174,31 +181,37 @@ impl AllFunctionsQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         source: &str,
         module_name: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
         let mut cursor = tree_sitter::QueryCursor::new();
         cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<Result<ExpectedAmLabel>> {
+            .filter_map(|capture| -> Option<Result<FunctionInfo>> {
                 let node = capture
                     .captures
                     .iter()
                     .find(|c| c.index == self.func_name_idx)?
                     .node;
+                let start = node.start_position();
+                let end = node.end_position();
+                let instrumentation = None;
+                let definition = Some(Location::from((file_name, start, end)));
                 let func_name = node.utf8_text(source.as_bytes()).ok()?.to_string();
                 let qualname = get_node_qualname(&node, source).ok()?;
-                let full_name = if qualname == "" {
+                let full_name = if qualname.is_empty() {
                     func_name
                 } else {
                     format!("{}.{}", qualname, func_name)
                 };
-                Some(Ok(ExpectedAmLabel {
-                    module: module_name.clone().to_string(),
-                    function: full_name,
+                Some(Ok(FunctionInfo {
+                    id: (module_name, full_name).into(),
+                    instrumentation,
+                    definition,
                 }))
             })
             .collect::<std::result::Result<Vec<_>, _>>()

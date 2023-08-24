@@ -1,12 +1,12 @@
 mod queries;
 
-use crate::{ExpectedAmLabel, ListAmFunctions, Result};
+use crate::{FunctionInfo, ListAmFunctions, Result};
 use queries::{AllFunctionsQuery, AmImportQuery, AmQuery};
 use rayon::prelude::*;
 use std::{
     collections::HashSet,
     fs::read_to_string,
-    path::{Path, MAIN_SEPARATOR},
+    path::{Path, PathBuf, MAIN_SEPARATOR},
 };
 use walkdir::{DirEntry, WalkDir};
 
@@ -36,7 +36,7 @@ impl Impl {
 }
 
 impl ListAmFunctions for Impl {
-    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
         let root_name = project_root
@@ -69,8 +69,14 @@ impl ListAmFunctions for Impl {
             let import_query = AmImportQuery::try_new().ok()?;
             let decorator_name = import_query.get_decorator_name(source.as_str()).ok()?;
             let query = AmQuery::try_new(decorator_name.as_str()).ok()?;
+            let file_name = PathBuf::from(path)
+                .strip_prefix(project_root)
+                .expect("path comes from a project_root WalkDir")
+                .to_str()
+                .expect("file_name is a valid path as it is part of `path`")
+                .to_string();
             let names = query
-                .list_function_names(&source, module_name.as_str())
+                .list_function_names(&file_name, &source, module_name.as_str())
                 .unwrap_or_default();
             Some(names)
         }));
@@ -80,7 +86,7 @@ impl ListAmFunctions for Impl {
         Ok(result)
     }
 
-    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_all_function_definitions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
         let root_name = project_root
@@ -110,9 +116,15 @@ impl ListAmFunctions for Impl {
                 .replace(MAIN_SEPARATOR, ".");
             let module_name = format!("{}.{}", root_name, relative_module_name);
             let source = read_to_string(path).ok()?;
+            let file_name = PathBuf::from(path)
+                .strip_prefix(project_root)
+                .expect("path comes from a project_root WalkDir")
+                .to_str()
+                .expect("file_name is a valid path as it is part of `path`")
+                .to_string();
             let query = AllFunctionsQuery::try_new().ok()?;
             let names = query
-                .list_function_names(&source, module_name.as_str())
+                .list_function_names(&file_name, &source, module_name.as_str())
                 .unwrap_or_default();
             Some(names)
         }));

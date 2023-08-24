@@ -3,7 +3,7 @@ pub mod python;
 pub mod rust;
 pub mod typescript;
 
-use std::{fmt::Display, path::Path};
+use std::{collections::HashMap, fmt::Display, path::Path};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -16,17 +16,116 @@ const FUNC_NAME_CAPTURE: &str = "func.name";
 /// This label is given as a best effort most of the time, as some languages
 /// cannot provide statically the exact information that is going to be produced
 /// by Autometrics.
+///
+/// ## Function relevant locations
+/// The location of the detected definition or instrumentation can be included here.
+///
+/// For "decoration-based" implementations of Autometrics (like `Rust` or `Python`), the
+/// definition and instrumentation locations will be mostly the same (maybe a few lines apart,
+/// just because the function decoration is a few lines above)
+///
+/// For "wrapper-based" implementation of Autometrics (like `Typescript`), the instrumentation
+/// will be targetting where the wrapper is called, while the definition location might be missing
+/// entirely if a function external to the project is being instrumented.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ExpectedAmLabel {
-    /// The location of the definition of the function.
+pub struct FunctionInfo {
+    pub id: FunctionId,
+    /// The location of the definition of the function
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub definition: Option<Location>,
+    /// The location of the instrumentation of the function (e.g. where the Autometrics wrapper is called.)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub instrumentation: Option<Location>,
+}
+
+/// A valid key to find a specific function in a codebase.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct FunctionId {
+    /// The name of the module.
     pub module: String,
     /// The name of the function.
     pub function: String,
 }
 
-impl Display for ExpectedAmLabel {
+impl<M, F> From<(M, F)> for FunctionId
+where
+    M: ToString,
+    F: ToString,
+{
+    fn from((module, function): (M, F)) -> Self {
+        Self {
+            module: module.to_string(),
+            function: function.to_string(),
+        }
+    }
+}
+
+/// A position in a file.
+///
+/// Lines and columns are 0-based, to mimic the choices made by
+/// [Language Server Protocol](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#position)
+/// and [tree-sitter](tree_sitter::Point)
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Position {
+    pub line: usize,
+    pub column: usize,
+}
+
+impl From<tree_sitter::Point> for Position {
+    fn from(point: tree_sitter::Point) -> Self {
+        Self {
+            line: point.row,
+            column: point.column,
+        }
+    }
+}
+
+/// A range in a file.
+///
+/// The start location is inclusive, the end location is exclusive, meaning a range of 1 character is
+/// going to follow `end == start + 1`
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Range {
+    /// Inclusive start location of the range.
+    pub start: Position,
+    /// Exclusive end location of the range.
+    pub end: Position,
+}
+
+impl From<(tree_sitter::Point, tree_sitter::Point)> for Range {
+    fn from((start, end): (tree_sitter::Point, tree_sitter::Point)) -> Self {
+        Self {
+            start: start.into(),
+            end: end.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Location {
+    pub file: String,
+    pub range: Range,
+}
+
+impl<F> From<(F, tree_sitter::Point, tree_sitter::Point)> for Location
+where
+    F: ToString,
+{
+    fn from((file_name, start, end): (F, tree_sitter::Point, tree_sitter::Point)) -> Self {
+        Self {
+            file: file_name.to_string(),
+            range: (start, end).into(),
+        }
+    }
+}
+
+impl Display for FunctionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "module: {}, function: {}", self.module, self.function)
+        write!(
+            f,
+            "module: {}, function: {}",
+            self.id.module, self.id.function
+        )
     }
 }
 
@@ -36,9 +135,30 @@ impl Display for ExpectedAmLabel {
 /// all functions defined without distinction in a project.
 pub trait ListAmFunctions {
     /// List all the autometricized functions under the given project.
-    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>>;
     /// List all the functions defined in the given project.
-    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>>;
+    fn list_all_function_definitions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>>;
+    /// List all the functions in the project, instrumented or just defined.
+    ///
+    /// This is guaranteed to return the most complete set of information
+    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
+        let am_functions = self.list_autometrics_functions(project_root)?;
+        let all_function_definitions = self.list_all_function_definitions(project_root)?;
+        let mut info_set: HashMap<FunctionId, FunctionInfo> = am_functions
+            .into_iter()
+            .map(|full_info| (full_info.id.clone(), full_info))
+            .collect();
+
+        // Only the definition field is expected to differ
+        // between am_functions and all_function_definitions
+        for function in all_function_definitions {
+            info_set
+                .entry(function.id.clone())
+                .and_modify(|info| info.definition = function.definition.clone())
+                .or_insert(function);
+        }
+        Ok(info_set.into_values().collect())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, AmlError>;

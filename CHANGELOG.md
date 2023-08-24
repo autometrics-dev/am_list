@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+
+- Renamed `ExpectedAmLabel` to `FunctionInfo`
+- `ExpectedAmLabel.module` and `ExpectedAmLabel.function` are now nested in
+  a new `FunctionId` structure: `FunctionInfo.id.(module|function)`.
+
+### Added
+
+- Added locus information in the `FunctionInfo` struct.
+  + `list --all` now includes the instrumentation location information when
+     available in each returned `FunctionInfo` structure
+
 ## [Version 0.2.7] - 2023-08-16
 
 ### Changed
