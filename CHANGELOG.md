@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [Version 0.3.0] - 2023-08-29
+
 ### Changed
 
 - Renamed `ExpectedAmLabel` to `FunctionInfo`
@@ -111,7 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 <!-- next-url -->
-[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/autometrics-dev/am_list/compare/v0.3.0...HEAD
+[Version 0.3.0]: https://github.com/autometrics-dev/am_list/compare/v0.2.7...v0.3.0
 [Version 0.2.7]: https://github.com/autometrics-dev/am_list/compare/v0.2.6...v0.2.7
 [Version 0.2.6]: https://github.com/autometrics-dev/am_list/compare/v0.2.5...v0.2.6
 [Version 0.2.5]: https://github.com/autometrics-dev/am_list/compare/v0.2.4...v0.2.5
