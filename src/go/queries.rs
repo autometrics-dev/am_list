@@ -1,4 +1,4 @@
-use crate::{AmlError, ExpectedAmLabel, Result, FUNC_NAME_CAPTURE};
+use crate::{AmlError, FunctionInfo, Location, Result, FUNC_NAME_CAPTURE};
 use log::error;
 use tree_sitter::{Parser, Query};
 use tree_sitter_go::language;
@@ -45,25 +45,33 @@ impl AmQuery {
         })
     }
 
-    pub fn list_function_names(&self, source: &str) -> Result<Vec<ExpectedAmLabel>> {
+    pub fn list_function_names(&self, file_name: &str, source: &str) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
         let mut cursor = tree_sitter::QueryCursor::new();
         cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<Result<ExpectedAmLabel>> {
+            .filter_map(|capture| -> Option<Result<FunctionInfo>> {
                 let module = capture
                     .nodes_for_capture_index(self.mod_name_idx)
                     .next()
                     .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))?;
-                let fn_name = capture
-                    .nodes_for_capture_index(self.func_name_idx)
-                    .next()
-                    .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))?;
+                let fn_node = capture.nodes_for_capture_index(self.func_name_idx).next()?;
+                let fn_name = fn_node
+                    .utf8_text(source.as_bytes())
+                    .map(ToString::to_string);
+                let start = fn_node.start_position();
+                let end = fn_node.end_position();
+                let instrumentation = Some(Location::from((file_name, start, end)));
+                let definition = Some(Location::from((file_name, start, end)));
 
                 match (module, fn_name) {
-                    (Ok(module), Ok(function)) => Some(Ok(ExpectedAmLabel { module, function })),
+                    (Ok(module), Ok(function)) => Some(Ok(FunctionInfo {
+                        id: (module, function).into(),
+                        instrumentation,
+                        definition,
+                    })),
                     (Err(err_mod), _) => {
                         error!("could not fetch the package name: {err_mod}");
                         Some(Err(AmlError::InvalidText))
@@ -112,25 +120,33 @@ impl AllFunctionsQuery {
         })
     }
 
-    pub fn list_function_names(&self, source: &str) -> Result<Vec<ExpectedAmLabel>> {
+    pub fn list_function_names(&self, file_name: &str, source: &str) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
 
         let mut cursor = tree_sitter::QueryCursor::new();
         cursor
             .matches(&self.query, parsed_source.root_node(), source.as_bytes())
-            .filter_map(|capture| -> Option<Result<ExpectedAmLabel>> {
+            .filter_map(|capture| -> Option<Result<FunctionInfo>> {
                 let module = capture
                     .nodes_for_capture_index(self.mod_name_idx)
                     .next()
                     .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))?;
-                let fn_name = capture
-                    .nodes_for_capture_index(self.func_name_idx)
-                    .next()
-                    .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))?;
+                let fn_node = capture.nodes_for_capture_index(self.func_name_idx).next()?;
+                let fn_name = fn_node
+                    .utf8_text(source.as_bytes())
+                    .map(ToString::to_string);
+                let start = fn_node.start_position();
+                let end = fn_node.end_position();
+                let instrumentation = None;
+                let definition = Some(Location::from((file_name, start, end)));
 
                 match (module, fn_name) {
-                    (Ok(module), Ok(function)) => Some(Ok(ExpectedAmLabel { module, function })),
+                    (Ok(module), Ok(function)) => Some(Ok(FunctionInfo {
+                        id: (module, function).into(),
+                        instrumentation,
+                        definition,
+                    })),
                     (Err(err_mod), _) => {
                         error!("could not fetch the package name: {err_mod}");
                         Some(Err(AmlError::InvalidText))

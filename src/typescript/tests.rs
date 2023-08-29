@@ -1,10 +1,22 @@
-use std::path::PathBuf;
+//! These tests are mostly for the queries, to ensure that querying only
+//! autometricized functions, or all functions, give the correct set of
+//! [`FunctionInfo`] entries. It is up to the [`Impl`] structure for each
+//! language to then merge the sets so that functions that get detected by both
+//! queries have their information merged.
+
+use crate::{Location, Position, Range};
 
 use super::{
     imports::{CanonicalSource, Identifier},
     queries::ImportsMapQuery,
     *,
 };
+
+use pretty_assertions::assert_eq;
+use std::path::PathBuf;
+
+const FILE_NAME: &str = "source.ts";
+const MODULE_NAME: &str = "testingModule";
 
 #[test]
 fn detect_simple() {
@@ -31,19 +43,56 @@ const asyncCallMetricized = autometrics(async function asyncCall() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names("", source, None)
+        .list_function_names(FILE_NAME, MODULE_NAME, source, None)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names("", source)
+        .list_function_names(FILE_NAME, MODULE_NAME, source)
         .unwrap();
-    let resolve_after_half = ExpectedAmLabel {
-        module: String::new(),
-        function: "resolveAfterHalfSecond".to_string(),
+    let resolve_location = Location {
+        file: FILE_NAME.into(),
+        range: Range {
+            start: Position { line: 7, column: 9 },
+            end: Position {
+                line: 7,
+                column: 9 + "resolveAfterHalfSecond".len(),
+            },
+        },
     };
-    let async_call = ExpectedAmLabel {
-        module: String::new(),
-        function: "asyncCall".to_string(),
+    let async_location = Location {
+        file: FILE_NAME.into(),
+        range: Range {
+            start: Position {
+                line: 15,
+                column: 55,
+            },
+            end: Position {
+                line: 15,
+                column: 55 + "asyncCall".len(),
+            },
+        },
+    };
+
+    let resolve_after_half = FunctionInfo {
+        id: (MODULE_NAME, "resolveAfterHalfSecond").into(),
+        instrumentation: None,
+        definition: Some(resolve_location),
+    };
+    let async_call = FunctionInfo {
+        id: (MODULE_NAME, "asyncCall").into(),
+        instrumentation: None,
+        definition: Some(async_location.clone()),
+    };
+    let async_call_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "asyncCall").into(),
+        instrumentation: Some(async_location),
+        // TODO: async_call is instrumented using the wrapper function,
+        // therefore AmQuery::list_function_names is not expected to guess that the definition is here as well
+        //
+        // But maybe it should, since the function is defined in place? It's low priority, because
+        // AllFunctionsQuery is supposed to catch the definition and eventually we want to merge the
+        // lists.
+        definition: None,
     };
 
     assert_eq!(
@@ -51,7 +100,7 @@ const asyncCallMetricized = autometrics(async function asyncCall() {
         1,
         "list should have 1 item, got this instead: {list:?}"
     );
-    assert_eq!(list[0], async_call);
+    assert_eq!(list[0], async_call_instrumented);
 
     assert_eq!(
         all.len(),
@@ -83,20 +132,49 @@ app.get("/async", autometrics(asyncRoute));
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names("", source, None)
+        .list_function_names(FILE_NAME, MODULE_NAME, source, None)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names("", source)
+        .list_function_names(FILE_NAME, MODULE_NAME, source)
         .unwrap();
-    // Should `list` track the origin of badRoute and asyncRoute??
-    let bad_route = ExpectedAmLabel {
-        module: String::new(),
-        function: "badRoute".to_string(),
+
+    let bad_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 7,
+                column: 28,
+            },
+            end: Position {
+                line: 7,
+                column: 28 + "badRoute".len(),
+            },
+        },
     };
-    let async_route = ExpectedAmLabel {
-        module: String::new(),
-        function: "asyncRoute".to_string(),
+    let async_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 8,
+                column: 30,
+            },
+            end: Position {
+                line: 8,
+                column: 30 + "asyncRoute".len(),
+            },
+        },
+    };
+
+    let bad_route = FunctionInfo {
+        id: (MODULE_NAME, "badRoute").into(),
+        instrumentation: Some(bad_location),
+        definition: None,
+    };
+    let async_route = FunctionInfo {
+        id: (MODULE_NAME, "asyncRoute").into(),
+        instrumentation: Some(async_location),
+        definition: None,
     };
 
     assert_eq!(
@@ -151,27 +229,89 @@ class NotGood {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names("", source, None)
+        .list_function_names(FILE_NAME, MODULE_NAME, source, None)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names("", source)
+        .list_function_names(FILE_NAME, MODULE_NAME, source)
         .unwrap();
-    let foo_constructor = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo.constructor".to_string(),
+
+    let foo_constructor_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position { line: 6, column: 4 },
+            end: Position {
+                line: 6,
+                column: 4 + "constructor".len(),
+            },
+        },
     };
-    let method_b = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo.method_b".to_string(),
+    let foo_method_b_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position { line: 9, column: 4 },
+            end: Position {
+                line: 9,
+                column: 4 + "method_b".len(),
+            },
+        },
     };
-    let not_good_constructor = ExpectedAmLabel {
-        module: String::new(),
-        function: "NotGood.constructor".to_string(),
+    let not_good_constructor_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 16,
+                column: 4,
+            },
+            end: Position {
+                line: 16,
+                column: 4 + "constructor".len(),
+            },
+        },
     };
-    let gotgot_method = ExpectedAmLabel {
-        module: String::new(),
-        function: "NotGood.gotgot".to_string(),
+    let not_good_gotgot_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 19,
+                column: 4,
+            },
+            end: Position {
+                line: 19,
+                column: 4 + "gotgot".len(),
+            },
+        },
+    };
+
+    let foo_constructor_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "Foo.constructor").into(),
+        instrumentation: Some(foo_constructor_location.clone()),
+        definition: Some(foo_constructor_location.clone()),
+    };
+    let method_b_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "Foo.method_b").into(),
+        instrumentation: Some(foo_method_b_location.clone()),
+        definition: Some(foo_method_b_location.clone()),
+    };
+    let foo_constructor = FunctionInfo {
+        id: (MODULE_NAME, "Foo.constructor").into(),
+        instrumentation: None,
+        definition: Some(foo_constructor_location),
+    };
+    let method_b = FunctionInfo {
+        id: (MODULE_NAME, "Foo.method_b").into(),
+        instrumentation: None,
+        definition: Some(foo_method_b_location),
+    };
+    let not_good_constructor = FunctionInfo {
+        id: (MODULE_NAME, "NotGood.constructor").into(),
+        instrumentation: None,
+        definition: Some(not_good_constructor_location),
+    };
+    let gotgot_method = FunctionInfo {
+        id: (MODULE_NAME, "NotGood.gotgot").into(),
+        instrumentation: None,
+        definition: Some(not_good_gotgot_location),
     };
 
     assert_eq!(
@@ -186,12 +326,12 @@ class NotGood {
     );
 
     assert!(
-        list.contains(&foo_constructor),
-        "The list should contain {foo_constructor:?}; complete list is {list:?}"
+        list.contains(&foo_constructor_instrumented),
+        "The list should contain {foo_constructor_instrumented:?}; complete list is {list:?}"
     );
     assert!(
-        list.contains(&method_b),
-        "The list should contain {method_b:?}; complete list is {list:?}"
+        list.contains(&method_b_instrumented),
+        "The list should contain {method_b_instrumented:?}; complete list is {list:?}"
     );
 
     assert!(
@@ -285,24 +425,67 @@ const instrumentedOther = autometrics(other.stuff);
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names("", source, Some(&PathBuf::from("src/")))
+        .list_function_names(FILE_NAME, MODULE_NAME, source, Some(&PathBuf::from("src/")))
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names("", source)
+        .list_function_names(FILE_NAME, MODULE_NAME, source)
         .unwrap();
 
-    let exec = ExpectedAmLabel {
-        module: "ext://child_process".to_string(),
-        function: "exec".to_string(),
+    let exec_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 6,
+                column: 37,
+            },
+            end: Position {
+                line: 6,
+                column: 37 + "exec".len(),
+            },
+        },
     };
-    let any_route = ExpectedAmLabel {
-        module: "src/handlers".to_string(),
-        function: "anyRoute".to_string(),
+    let route_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 7,
+                column: 38,
+            },
+            end: Position {
+                line: 7,
+                column: 38 + "myRoute".len(),
+            },
+        },
     };
-    let stuff = ExpectedAmLabel {
-        module: "sibling://other".to_string(),
-        function: "stuff".to_string(),
+    let other_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 8,
+                column: 38,
+            },
+            end: Position {
+                line: 8,
+                column: 38 + "other.stuff".len(),
+            },
+        },
+    };
+
+    let exec = FunctionInfo {
+        id: ("ext://child_process", "exec").into(),
+        instrumentation: Some(exec_location),
+        definition: None,
+    };
+    let any_route = FunctionInfo {
+        id: ("src/handlers", "anyRoute").into(),
+        instrumentation: Some(route_location),
+        definition: None,
+    };
+    let stuff = FunctionInfo {
+        id: ("sibling://other", "stuff").into(),
+        instrumentation: Some(other_location),
+        definition: None,
     };
 
     assert_eq!(
@@ -350,15 +533,36 @@ fn detect_two_args_wrapper() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names("", source, None)
+        .list_function_names(FILE_NAME, MODULE_NAME, source, None)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names("", source)
+        .list_function_names(FILE_NAME, MODULE_NAME, source)
         .unwrap();
-    let get_wow = ExpectedAmLabel {
-        module: "MODULE".to_string(),
-        function: "getThatWow".to_string(),
+    let get_wow_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 5,
+                column: 21,
+            },
+            end: Position {
+                line: 5,
+                column: 21 + "getThatWow".len(),
+            },
+        },
+    };
+
+    let get_wow = FunctionInfo {
+        id: ("MODULE", "getThatWow").into(),
+        instrumentation: Some(get_wow_location),
+        // TODO: getWow is instrumented using the wrapper function,
+        // therefore AmQuery::list_function_names is not expected to guess that the definition is here as well
+        //
+        // But maybe it should, since the function is defined in place? It's low priority, because
+        // AllFunctionsQuery is supposed to catch the definition and eventually we want to merge the
+        // lists.
+        definition: None,
     };
 
     assert_eq!(

@@ -1,5 +1,16 @@
+//! These tests are mostly for the queries, to ensure that querying only
+//! autometricized functions, or all functions, give the correct set of
+//! [`FunctionInfo`] entries. It is up to the [`Impl`] structure for each
+//! language to then merge the sets so that functions that get detected by both
+//! queries have their information merged.
+
+use crate::{Location, Position, Range};
+
 use super::*;
 use pretty_assertions::assert_eq;
+
+const FILE_NAME: &str = "source.rs";
+const MODULE_NAME: &str = "dummy_mod";
 
 #[test]
 fn detect_single() {
@@ -10,15 +21,30 @@ fn detect_single() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
+
+    let location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 2,
+                column: 11,
+            },
+            end: Position {
+                line: 2,
+                column: 15,
+            },
+        },
+    };
 
     assert_eq!(list.len(), 1);
     assert_eq!(
         list[0],
-        ExpectedAmLabel {
-            module: String::new(),
-            function: "main".into()
+        FunctionInfo {
+            id: (MODULE_NAME, "main").into(),
+            instrumentation: Some(location.clone()),
+            definition: Some(location),
         }
     );
 }
@@ -36,15 +62,30 @@ fn detect_impl_block() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
+
+    let location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 5,
+                column: 15,
+            },
+            end: Position {
+                line: 5,
+                column: 15 + "method_a".len(),
+            },
+        },
+    };
 
     assert_eq!(list.len(), 1);
     assert_eq!(
         list[0],
-        ExpectedAmLabel {
-            module: String::new(),
-            function: "Foo::method_a".into()
+        FunctionInfo {
+            id: (MODULE_NAME, "Foo::method_a").into(),
+            instrumentation: Some(location.clone()),
+            definition: Some(location),
         }
     );
 }
@@ -62,15 +103,30 @@ fn detect_trait_impl_block() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
+
+    let location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 5,
+                column: 15,
+            },
+            end: Position {
+                line: 5,
+                column: 15 + "m_a".len(),
+            },
+        },
+    };
 
     assert_eq!(list.len(), 1);
     assert_eq!(
         list[0],
-        ExpectedAmLabel {
-            module: String::new(),
-            function: "Foo::m_a".into()
+        FunctionInfo {
+            id: (MODULE_NAME, "Foo::m_a").into(),
+            instrumentation: Some(location.clone()),
+            definition: Some(location),
         }
     );
 }
@@ -100,38 +156,108 @@ fn dodge_wrong_impl_block() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
 
-    let method_one = ExpectedAmLabel {
-        module: String::new(),
-        function: "Bar::method_one".into(),
+    let method_one_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 6,
+                column: 15,
+            },
+            end: Position {
+                line: 6,
+                column: 15 + "method_one".len(),
+            },
+        },
     };
-    let method_two = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo::method_two".into(),
+
+    let method_two_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 10,
+                column: 15,
+            },
+            end: Position {
+                line: 10,
+                column: 15 + "method_two".len(),
+            },
+        },
     };
-    let method_three = ExpectedAmLabel {
-        module: String::new(),
-        function: "Bar::method_three".into(),
+
+    let method_three_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 13,
+                column: 15,
+            },
+            end: Position {
+                line: 13,
+                column: 15 + "method_three".len(),
+            },
+        },
     };
-    let method_four = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo::method_four".into(),
+
+    let method_four_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 17,
+                column: 15,
+            },
+            end: Position {
+                line: 17,
+                column: 15 + "method_four".len(),
+            },
+        },
+    };
+
+    let method_one = FunctionInfo {
+        id: (MODULE_NAME, "Bar::method_one").into(),
+        instrumentation: None,
+        definition: Some(method_one_location),
+    };
+    let method_two = FunctionInfo {
+        id: (MODULE_NAME, "Foo::method_two").into(),
+        instrumentation: None,
+        definition: Some(method_two_location.clone()),
+    };
+    let method_two_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "Foo::method_two").into(),
+        instrumentation: Some(method_two_location.clone()),
+        definition: Some(method_two_location),
+    };
+    let method_three = FunctionInfo {
+        id: (MODULE_NAME, "Bar::method_three").into(),
+        instrumentation: None,
+        definition: Some(method_three_location),
+    };
+    let method_four = FunctionInfo {
+        id: (MODULE_NAME, "Foo::method_four").into(),
+        instrumentation: None,
+        definition: Some(method_four_location.clone()),
+    };
+    let method_four_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "Foo::method_four").into(),
+        instrumentation: Some(method_four_location.clone()),
+        definition: Some(method_four_location),
     };
 
     assert_eq!(list.len(), 2);
     assert!(
-        list.contains(&method_two),
-        "Expecting the list to contain {method_two:?}\nComplete list is {list:?}"
+        list.contains(&method_two_instrumented),
+        "Expecting the list to contain {method_two_instrumented:?}\nComplete list is {list:?}"
     );
     assert!(
-        list.contains(&method_four),
-        "Expecting the list to contain {method_four:?}\nComplete list is {list:?}"
+        list.contains(&method_four_instrumented),
+        "Expecting the list to contain {method_four_instrumented:?}\nComplete list is {list:?}"
     );
 
     assert_eq!(all.len(), 4, "Complete list is {all:?}");
@@ -173,24 +299,58 @@ fn detect_inner_module() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
     assert_eq!(
         list.len(),
         2,
         "Expected to find 2 items, instead the list is {list:?}"
     );
-    let inner_fn = ExpectedAmLabel {
-        module: "inner".into(),
-        function: "inner_function".into(),
+
+    let inner_fn_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 3,
+                column: 15,
+            },
+            end: Position {
+                line: 3,
+                column: 15 + "inner_function".len(),
+            },
+        },
+    };
+    let nested_fn_location = Location {
+        file: FILE_NAME.to_string(),
+        range: Range {
+            start: Position {
+                line: 10,
+                column: 23,
+            },
+            end: Position {
+                line: 10,
+                column: 23 + "hidden_function".len(),
+            },
+        },
+    };
+
+    let inner_fn = FunctionInfo {
+        id: (format!("{MODULE_NAME}::inner"), "inner_function").into(),
+        instrumentation: Some(inner_fn_location.clone()),
+        definition: Some(inner_fn_location.clone()),
     };
     assert!(
         list.contains(&inner_fn),
         "Expecting the detected functions to contain {inner_fn:?}\nComplete list is {list:?}"
     );
-    let nested_fn = ExpectedAmLabel {
-        module: "well::nested::stuff".into(),
-        function: "hidden_function".into(),
+    let nested_fn = FunctionInfo {
+        id: (
+            format!("{MODULE_NAME}::well::nested::stuff"),
+            "hidden_function",
+        )
+            .into(),
+        instrumentation: Some(nested_fn_location.clone()),
+        definition: Some(nested_fn_location),
     };
     assert!(
         list.contains(&nested_fn),
@@ -213,27 +373,62 @@ fn detect_partially_annotated_impl_block() {
 
     let list = AmQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
     let all = AllFunctionsQuery::try_new()
         .unwrap()
-        .list_function_names(String::new(), source)
+        .list_function_names(FILE_NAME, MODULE_NAME.to_string(), source)
         .unwrap();
 
-    let m_a = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo::m_a".into(),
+    let dummy_location = Location {
+        file: FILE_NAME.into(),
+        range: Range {
+            start: Position {
+                line: 4,
+                column: 15,
+            },
+            end: Position {
+                line: 4,
+                column: 15 + "nothing_to_see_here".len(),
+            },
+        },
+    };
+    let m_a_location = Location {
+        file: FILE_NAME.into(),
+        range: Range {
+            start: Position {
+                line: 7,
+                column: 15,
+            },
+            end: Position {
+                line: 7,
+                column: 15 + "m_a".len(),
+            },
+        },
     };
 
-    let dummy = ExpectedAmLabel {
-        module: String::new(),
-        function: "Foo::nothing_to_see_here".into(),
+    let m_a = FunctionInfo {
+        id: (MODULE_NAME, "Foo::m_a").into(),
+        instrumentation: None,
+        definition: Some(m_a_location.clone()),
+    };
+
+    let m_a_instrumented = FunctionInfo {
+        id: (MODULE_NAME, "Foo::m_a").into(),
+        instrumentation: Some(m_a_location.clone()),
+        definition: Some(m_a_location),
+    };
+
+    let dummy = FunctionInfo {
+        id: (MODULE_NAME, "Foo::nothing_to_see_here").into(),
+        instrumentation: None,
+        definition: Some(dummy_location),
     };
 
     assert_eq!(list.len(), 1, "Complete list is {list:?}");
     assert!(
-        list.contains(&m_a),
-        "Expecting the list to contain {m_a:?}\nComplete list is {list:?}"
+        list.contains(&m_a_instrumented),
+        "Expecting the list to contain {m_a_instrumented:?}\nComplete list is {list:?}"
     );
 
     assert_eq!(all.len(), 2);

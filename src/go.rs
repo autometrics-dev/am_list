@@ -1,9 +1,13 @@
 mod queries;
 
-use crate::{ExpectedAmLabel, ListAmFunctions, Result};
+use crate::{FunctionInfo, ListAmFunctions, Result};
 use queries::{AllFunctionsQuery, AmQuery};
 use rayon::prelude::*;
-use std::{collections::HashSet, fs::read_to_string, path::Path};
+use std::{
+    collections::HashSet,
+    fs::read_to_string,
+    path::{Path, PathBuf},
+};
 use walkdir::{DirEntry, WalkDir};
 
 /// Implementation of the Go support for listing autometricized functions.
@@ -33,7 +37,7 @@ impl Impl {
 }
 
 impl ListAmFunctions for Impl {
-    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_autometrics_functions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
 
@@ -52,8 +56,16 @@ impl ListAmFunctions for Impl {
 
         list.par_extend(source_mod_pairs.par_iter().filter_map(move |path| {
             let source = read_to_string(path).ok()?;
+            let file_name = PathBuf::from(path)
+                .strip_prefix(project_root)
+                .expect("path comes from a project_root WalkDir")
+                .to_str()
+                .expect("file_name is a valid path as it is part of `path`")
+                .to_string();
             let query = AmQuery::try_new().ok()?;
-            let names = query.list_function_names(&source).unwrap_or_default();
+            let names = query
+                .list_function_names(&file_name, &source)
+                .unwrap_or_default();
             Some(names)
         }));
 
@@ -62,7 +74,7 @@ impl ListAmFunctions for Impl {
         Ok(result)
     }
 
-    fn list_all_functions(&mut self, project_root: &Path) -> Result<Vec<ExpectedAmLabel>> {
+    fn list_all_function_definitions(&mut self, project_root: &Path) -> Result<Vec<FunctionInfo>> {
         const PREALLOCATED_ELEMS: usize = 100;
         let mut list = HashSet::with_capacity(PREALLOCATED_ELEMS);
 
@@ -81,8 +93,16 @@ impl ListAmFunctions for Impl {
 
         list.par_extend(source_mod_pairs.par_iter().filter_map(move |path| {
             let source = read_to_string(path).ok()?;
+            let file_name = PathBuf::from(path)
+                .strip_prefix(project_root)
+                .expect("path comes from a project_root WalkDir")
+                .to_str()
+                .expect("file_name is a valid path as it is part of `path`")
+                .to_string();
             let query = AllFunctionsQuery::try_new().ok()?;
-            let names = query.list_function_names(&source).unwrap_or_default();
+            let names = query
+                .list_function_names(&file_name, &source)
+                .unwrap_or_default();
             Some(names)
         }));
 

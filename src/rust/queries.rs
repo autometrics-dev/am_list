@@ -1,4 +1,4 @@
-use crate::{AmlError, ExpectedAmLabel, Result, FUNC_NAME_CAPTURE};
+use crate::{AmlError, FunctionInfo, Location, Result, FUNC_NAME_CAPTURE};
 use log::{trace, warn};
 use tree_sitter::{Node, Parser, Query};
 use tree_sitter_rust::language;
@@ -156,21 +156,23 @@ impl AmQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         module: String,
         source: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
-        self.list_function_rec(module, None, parsed_source.root_node(), source)
+        self.list_function_rec(file_name, module, None, parsed_source.root_node(), source)
     }
 
     fn list_function_rec(
         &self,
+        file_name: &str,
         current_module: String,
         current_type: Option<String>,
         node: Node,
         source: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut res = Vec::new();
         let mut cursor = tree_sitter::QueryCursor::new();
 
@@ -178,6 +180,7 @@ impl AmQuery {
         let direct_names = self.list_direct_function_names(
             &mut cursor,
             node,
+            file_name,
             source,
             &current_type,
             &current_module,
@@ -185,8 +188,13 @@ impl AmQuery {
         res.extend(direct_names);
 
         // Detect all methods from annotated impl blocks directly in module scope
-        let impl_block_methods =
-            self.list_annotated_impl_block_methods(&mut cursor, node, source, &current_module);
+        let impl_block_methods = self.list_annotated_impl_block_methods(
+            &mut cursor,
+            node,
+            file_name,
+            source,
+            &current_module,
+        );
         res.extend(impl_block_methods);
 
         // Detect all functions in submodule scope
@@ -232,6 +240,7 @@ impl AmQuery {
                             .unwrap()
                     );
                     let inner = self.list_function_rec(
+                        file_name,
                         new_module,
                         current_type.clone(),
                         contents_node,
@@ -279,6 +288,7 @@ impl AmQuery {
                             .unwrap()
                     );
                     let inner = self.list_function_rec(
+                        file_name,
                         current_module.clone(),
                         Some(type_name),
                         contents_node,
@@ -296,13 +306,14 @@ impl AmQuery {
         &self,
         cursor: &mut tree_sitter::QueryCursor,
         node: Node,
+        file_name: &str,
         source: &str,
         current_type: &Option<String>,
         current_module: &str,
-    ) -> Vec<ExpectedAmLabel> {
+    ) -> Vec<FunctionInfo> {
         cursor
             .matches(&self.query, node, source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 let fn_node: Node = capture.nodes_for_capture_index(self.func_name_idx).next()?;
 
                 // Ignore the matches that are within a mod_item, as the recursion will catch it later with the fully qualified module name.
@@ -316,6 +327,11 @@ impl AmQuery {
                     return None;
                 }
 
+                let start = fn_node.start_position();
+                let end = fn_node.end_position();
+                let instrumentation = Some(Location::from((file_name, start, end)));
+                let definition = Some(Location::from((file_name, start, end)));
+
                 let fn_name: std::result::Result<String, std::str::Utf8Error> = fn_node
                     .utf8_text(source.as_bytes())
                     .map(ToString::to_string);
@@ -326,9 +342,10 @@ impl AmQuery {
                     .unwrap_or_default();
 
                 match fn_name {
-                    Ok(f) => Some(ExpectedAmLabel {
-                        module: current_module.to_string(),
-                        function: format!("{type_prefix}{f}"),
+                    Ok(f) => Some(FunctionInfo {
+                        id: (current_module, format!("{type_prefix}{f}")).into(),
+                        instrumentation,
+                        definition,
                     }),
                     Err(e) => {
                         warn!("Could not get the method name: {e}");
@@ -343,12 +360,13 @@ impl AmQuery {
         &self,
         cursor: &mut tree_sitter::QueryCursor,
         node: Node,
+        file_name: &str,
         source: &str,
         current_module: &str,
-    ) -> Vec<ExpectedAmLabel> {
+    ) -> Vec<FunctionInfo> {
         cursor
             .matches(&self.query, node, source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 let fn_node: Node = capture
                     .nodes_for_capture_index(self.annotated_impl_method_name_idx)
                     .next()?;
@@ -366,10 +384,16 @@ impl AmQuery {
                     .next()
                     .map(|node| node.utf8_text(source.as_bytes()).map(ToString::to_string))?;
 
+                let start = fn_node.start_position();
+                let end = fn_node.end_position();
+                let instrumentation = Some(Location::from((file_name, start, end)));
+                let definition = Some(Location::from((file_name, start, end)));
+
                 match (struct_name, fn_name) {
-                    (Ok(s), Ok(f)) => Some(ExpectedAmLabel {
-                        module: current_module.to_string(),
-                        function: format!("{s}::{f}"),
+                    (Ok(s), Ok(f)) => Some(FunctionInfo {
+                        id: (current_module, format!("{s}::{f}")).into(),
+                        instrumentation,
+                        definition,
                     }),
                     (Err(e), _) => {
                         warn!("Could not extract the name of the struct: {e}");
@@ -440,21 +464,23 @@ impl AllFunctionsQuery {
 
     pub fn list_function_names(
         &self,
+        file_name: &str,
         module: String,
         source: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut parser = new_parser()?;
         let parsed_source = parser.parse(source, None).ok_or(AmlError::Parsing)?;
-        self.list_function_rec(module, None, parsed_source.root_node(), source)
+        self.list_function_rec(file_name, module, None, parsed_source.root_node(), source)
     }
 
     fn list_function_rec(
         &self,
+        file_name: &str,
         current_module: String,
         current_type: Option<String>,
         node: Node,
         source: &str,
-    ) -> Result<Vec<ExpectedAmLabel>> {
+    ) -> Result<Vec<FunctionInfo>> {
         let mut res = Vec::new();
         let mut cursor = tree_sitter::QueryCursor::new();
 
@@ -462,6 +488,7 @@ impl AllFunctionsQuery {
         let direct_names = self.list_direct_function_names(
             &mut cursor,
             node,
+            file_name,
             source,
             current_type,
             &current_module,
@@ -510,7 +537,8 @@ impl AllFunctionsQuery {
                             .map(ToString::to_string)
                             .unwrap()
                     );
-                    let inner = self.list_function_rec(new_module, None, contents_node, source)?;
+                    let inner =
+                        self.list_function_rec(file_name, new_module, None, contents_node, source)?;
                     res.extend(inner.into_iter())
                 }
             }
@@ -553,6 +581,7 @@ impl AllFunctionsQuery {
                             .unwrap()
                     );
                     let inner = self.list_function_rec(
+                        file_name,
                         current_module.clone(),
                         Some(type_name),
                         contents_node,
@@ -570,13 +599,14 @@ impl AllFunctionsQuery {
         &self,
         cursor: &mut tree_sitter::QueryCursor,
         node: Node,
+        file_name: &str,
         source: &str,
         current_type: Option<String>,
         current_module: &str,
-    ) -> Vec<ExpectedAmLabel> {
+    ) -> Vec<FunctionInfo> {
         cursor
             .matches(&self.query, node, source.as_bytes())
-            .filter_map(|capture| -> Option<ExpectedAmLabel> {
+            .filter_map(|capture| -> Option<FunctionInfo> {
                 let fn_node: Node = capture.nodes_for_capture_index(self.func_name_idx).next()?;
 
                 // Ignore the matches that are within a mod_item, as the recursion will catch it later with the fully qualified module name.
@@ -599,10 +629,16 @@ impl AllFunctionsQuery {
                     .map(|t| format!("{t}::"))
                     .unwrap_or_default();
 
+                let start = fn_node.start_position();
+                let end = fn_node.end_position();
+                let instrumentation = None;
+                let definition = Some(Location::from((file_name, start, end)));
+
                 match fn_name {
-                    Ok(f) => Some(ExpectedAmLabel {
-                        module: current_module.to_string(),
-                        function: format!("{type_prefix}{f}"),
+                    Ok(f) => Some(FunctionInfo {
+                        id: (current_module, format!("{type_prefix}{f}")).into(),
+                        instrumentation,
+                        definition,
                     }),
                     Err(e) => {
                         warn!("Could not get the method name: {e}");
