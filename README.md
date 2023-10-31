@@ -1,3 +1,12 @@
+# Archival notice
+
+This repo is unmaintained and you should NOT be using it. All further development/bugfixes happen in
+[am](https://github.com/autometrics-dev/am) now, where [am_list](https://github.com/autometrics-dev/am/tree/main/am_list) 
+has been merged and all existing
+functionality is in the `am list` subcommand of `am`
+
+---
+
 # Autometrics List
 
 A command that lists all functions that have the "autometrics" annotation.
